@@ -395,7 +395,8 @@ def layout(col):
                 select_mode=sg.TABLE_SELECT_MODE_EXTENDED,
                 right_click_menu=["", ["Select all", "My fit"]],
                 background_color='#aaaaaa',
-                alternating_row_color='#888888',), sg.Button("test2"), sg.Button("test3")],
+                alternating_row_color='#888888',
+                display_row_numbers = True), sg.Button("test2"), sg.Button("test3")],
             [sg.Text('_' * 120)],
             [
             sg.Frame("", buttons, key="buttons", border_width=1,),
@@ -557,17 +558,30 @@ while True:
         z = data_set[values["z"][0]].values
         Diff = data_set["diff"]
 
-        pl_d = ax_d.scatter(x, Diff, c=z, cmap=cm,
-                            edgecolors="black", linewidth=0.5)
-        pl_I = ax_I.scatter(x, y, c=z, cmap=cm,
-                            edgecolors="black", linewidth=0.5)
+        pl_d = ax_d.scatter(x, Diff, c=z, cmap=cm,edgecolors="black", linewidth=0.5)
+        pl_I = ax_I.scatter(x, y, c=z, cmap=cm,edgecolors="black", linewidth=0.5)
 
         fig.colorbar(pl_I, ax=ax_I)
         plt.pause(0.1)
 
     elif event == "B-Plot":
-        fig = plt.figure(figsize=(14, 7), dpi=100)
+        fig = plt.figure(figsize=(8, 7), dpi=100)
         ax = Init_ax(fig, values["x"][0], values["y"][0], place=111)
+        for i in values["-TABLE-"]:
+            data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
+            x = data[values["x"][0]].values
+            y = data[values["y"][0]].values
+            z = data[values["z"][0]].values
+            if values["plt_mode"] == "Nomal":
+                ax.scatter(x,y,edgecolors="black",linewidth=0.5, alpha=0.40, label=Dset[window["-TABLE-"].get()[i][0]][0])
+                ax.legend()
+            if values["plt_mode"] == "Color":
+                ax.scatter(x,y,c=z,cmap=cm,edgecolor="black",linewidth=0.40,alpha=0.3)
+
+        if values["plt_mode"] == "Color":
+            plt.colorbar(ax=ax)
+        plt.pause(0.1)
+
 
 
     elif event in Pname:

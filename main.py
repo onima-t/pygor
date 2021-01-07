@@ -34,6 +34,7 @@ apc=ac.Appearence_controler()
 columns_cnd = ["fit num", "filename", "fmax", "fmin", "init_D", "init_G", "init_C", "init_O",
                "bm_D", "bm_G", "bm_C", "bm_O", "bM_D", "bM_G", "bM_C", "bM_O"]
 c4table = df.columns[1:12]
+DATA_MODES = ["Raw data","1st diff","2nd diff","3rd diff","Integral"]
 
 
 I_ax_label = r"V ($\mu \rm{eV}$)"
@@ -61,7 +62,14 @@ def differentiate(x, y):
     Diff = np.array([d1[0]])
     Diff = np.append(Diff, d2)
     Diff = np.append(Diff, [d1[-1]])
-    return Diff / D_norm
+    return Diff
+
+def n_diff(x, y, n):
+    diff = np.copy(y)
+    for i in range(n):
+        diff=differentiate(x,diff)
+    return diff
+
 
 
 def path_list(path, fe=None):
@@ -96,6 +104,23 @@ def pl_dynes(ax, min, max, params, color, num_p=300, LS="-", label=""):
     pl = ax.plot(x, y, color=color, linestyle=LS, label=label)
     return pl
 
+def data_mode_ref(df, xname, yname):
+    ["Raw data","1st diff","2nd diff","3rd diff","Integral"]
+    x,y = df[xname].values,df[yname].values
+    if values["data_mode"] == "Raw data":
+        return data, yname
+    elif values["data_mode"] == "1st diff":
+        y = n_diff(x,y,1)
+    elif values["data_mode"] == "2nd diff":
+        y = n_diff(x,y,2)
+    elif values["data_mode"] == "3rd diff":
+        y = n_diff(x,y,3)
+    elif values["data_mode"] == "Integral":
+        return 0#工事中
+    new_yname = values["data_mode"] + " " + yname
+    df[new_yname] = pd.Series(y)
+    print(y)
+    return df,new_yname
 
 def check_bounds(name_c):
     name = name_c[:-2]
@@ -340,6 +365,7 @@ def layout(col):
         ],
         [
         sg.OptionMenu(["Nomal", "Color", "3D"],key="plt_mode"),
+        sg.OptionMenu(DATA_MODES,key="data_mode"),
         sg.Button("B-Plot")
         ]
     ]
@@ -400,7 +426,7 @@ def layout(col):
             [sg.Text('_' * 120)],
             [
             sg.Frame("", buttons, key="buttons", border_width=1,),
-            sg.Frame("", sel_xyz, element_justification="center"),
+            sg.Frame("Plot menu", sel_xyz, element_justification="center"),
             sg.Frame("", Fit_controler, border_width=0)
             ]
         ]
@@ -540,22 +566,24 @@ while True:
         plt.pause(0.1)
 
     elif event == 'Plot':
+        x_sel = values["x"][0]
+        y_sel = values["y"][0]
+        z_sel = values["z"][0]
         fig = plt.figure(figsize=(14, 7), dpi=100)
-        ax_I = Init_ax(fig, values["x"][0], values["y"][0], place=121)
-        ax_d = Init_ax(fig, values["x"][0], "dy/dx", place=122)
+        ax_I = Init_ax(fig, x_sel, y_sel, place=121)
+        ax_d = Init_ax(fig, x_sel, "dy/dx", place=122)
         data_set = pd.DataFrame()
 
         for i in values["-TABLE-"]:
             data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
-            xy = data[[values["x"][0], values["y"][0]]].values
-            data["diff"] = pd.Series(differentiate(
-                xy[:, 0], differentiate(xy[:, 0], xy[:, 1])))
+            xy = data[[x_sel, y_sel]].values
+            data["diff"] = pd.Series(differentiate(xy[:, 0], differentiate(xy[:, 0], xy[:, 1])))
             data_set = data_set.append(data)
 
-        data_set = data_set.sort_values(values["z"][0]).dropna(how="any")
-        x = data_set[values["x"][0]].values
-        y = data_set[values["y"][0]].values
-        z = data_set[values["z"][0]].values
+        data_set = data_set.sort_values(z_sel).dropna(how="any")
+        x = data_set[x_sel].values
+        y = data_set[y_sel].values
+        z = data_set[z_sel].values
         Diff = data_set["diff"]
 
         pl_d = ax_d.scatter(x, Diff, c=z, cmap=cm,edgecolors="black", linewidth=0.5)
@@ -565,21 +593,28 @@ while True:
         plt.pause(0.1)
 
     elif event == "B-Plot":
+        x_sel = values["x"][0]
+        y_sel = values["y"][0]
+        z_sel = values["z"][0]
         fig = plt.figure(figsize=(8, 7), dpi=100)
-        ax = Init_ax(fig, values["x"][0], values["y"][0], place=111)
-        for i in values["-TABLE-"]:
-            data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
-            x = data[values["x"][0]].values
-            y = data[values["y"][0]].values
-            z = data[values["z"][0]].values
-            if values["plt_mode"] == "Nomal":
+        ax = Init_ax(fig, x_sel, y_sel, place=111)
+        if values["plt_mode"]=="Nomal":
+            for i in values["-TABLE-"]:
+                data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
+                x = data[x_sel].values
+                y = data[y_sel].values
+                z = data[z_sel].values
                 ax.scatter(x,y,edgecolors="black",linewidth=0.5, alpha=0.40, label=Dset[window["-TABLE-"].get()[i][0]][0])
                 ax.legend()
-            if values["plt_mode"] == "Color":
-                ax.scatter(x,y,c=z,cmap=cm,edgecolor="black",linewidth=0.40,alpha=0.3)
+        elif values["plt_mode"] == "Color":
+            data_set = pd.DataFrame()
+            for i in values["-TABLE-"]:
+                data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
+                data, new_yname = data_mode_ref(data, x_sel, y_sel)
+                data_set = data_set.append(data)
+            pl = ax.scatter(data_set[x_sel].values, data_set[new_yname].values, c=data_set[z_sel].values, cmap=cm, edgecolor="black",linewidth=0.40,alpha=0.3)
+            fig.colorbar(pl,ax=ax)
 
-        if values["plt_mode"] == "Color":
-            plt.colorbar(ax=ax)
         plt.pause(0.1)
 
 

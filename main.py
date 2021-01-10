@@ -9,38 +9,27 @@ import tkinter
 from tkinter import filedialog
 import picture
 import random
-import sympy as sm
 import add_column as ac
+import fitting_GUI as fg
 
-sm.init_printing()
 
 
-app_name = "pygor"
+APP_NAME = "pygor"
 D_norm = 0.00046373
 ax_Ymax = 1.5
 ax_Ymin = 0
-Pname = ["Delta", "Gamma", "Coef", "Offset"]
-Pname_c = [i + "_c" for i in Pname]
-# initial parameter range which user can select by slider
-Prange = {"Delta": (0, 4000), "Gamma": (0, 5000),
-          "Coef": (0.5, 1.5), "Offset": (-0.5, 0.5)}
 cm = plt.cm.get_cmap('gist_rainbow_r')
-df = pd.DataFrame(columns=["fit num", "filename", "points", "T",
-                           "Delta", "Gamma", "Coef", "Offset", "s_D", "s_G", "s_C", "s_O"])
 T_oya = pd.DataFrame()
 Vcol = ["f_path", "filename", "counts"]
 apc=ac.Appearence_controler()
+FG = fg.Fit_GUI(fg.FIT_FUNCS)
 
-columns_cnd = ["fit num", "filename", "fmax", "fmin", "init_D", "init_G", "init_C", "init_O",
-               "bm_D", "bm_G", "bm_C", "bm_O", "bM_D", "bM_G", "bM_C", "bM_O"]
-c4table = df.columns[1:12]
 DATA_MODES = ["Raw data","1st diff","2nd diff","3rd diff","Integral"]
 
+SEP_CHARACTOR = " |\t|,"
 
-I_ax_label = r"V ($\mu \rm{eV}$)"
-V_ax_label = r"I ($\mu \rm{A}$)"
-ax_fontsize = 18
-tick_labelsize = 15
+AX_FONTSIZE = 18
+TICK_LABELSIZE = 15
 
 #folder_path=sg.PopupGetFolder("Choose a Folder")
 
@@ -82,11 +71,14 @@ def path_list(path, fe=None):
     return files_dir
 
 
-def Init_ax(fig, xlabel, ylabel, ymin=0, ymax=1.5, place=111):
-    ax = fig.add_subplot(place)
-    ax.set_xlabel(xlabel, fontsize=ax_fontsize)
-    ax.set_ylabel(ylabel, fontsize=ax_fontsize)
-    ax.tick_params(labelsize=tick_labelsize)
+def Init_ax(fig, xlabel, ylabel, ymin=0, ymax=1.5, place=111, _3D=False):
+    if _3D == False:
+        ax = fig.add_subplot(place)
+    else:
+        ax = fig.add_subplot(place, projection = "3d")
+    ax.set_xlabel(xlabel, fontsize=AX_FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=AX_FONTSIZE)
+    ax.tick_params(labelsize=TICK_LABELSIZE)
     # ax.set_ylim(ymin,ymax)
     ax.grid(color='black', linestyle='dashed', linewidth=0.5)
     return ax
@@ -170,7 +162,7 @@ def table_update_data(idx_s, sel=None, sort_order=True):
     a=apc.df_show
 
     window.close()
-    window = sg.Window(app_name, layout(Vcol), location=(0, 0), finalize=True)
+    window = sg.Window(APP_NAME, layout(Vcol), location=(0, 0), finalize=True)
 
     window["-TABLE-"].update(values=a[Vcol].values.tolist(), select_rows=sel)
     window["Visual fit"].update(disabled=True)
@@ -184,13 +176,39 @@ def table_update_order(idx_s, sel=None, sort_order=True):
     window["-TABLE-"].update(values=a[Vcol].values.tolist(), select_rows=sel)
     window["Visual fit"].update(disabled=True)
 
+def fg_update(sel_func,sel_data=None):
+    global window
+    t=window["-TABLE-"].get()
+    val_x=window["x"].get_list_values()
+    val_y=window["y"].get_list_values()
+    val_z=window["z"].get_list_values()
+    sel_x=window["x"].get_indexes()
+    sel_y=window["y"].get_indexes()
+    sel_z=window["z"].get_indexes()
+    sel_f=window["func_list"].get_indexes()[0]
+
+    window.close()
+    window = sg.Window(APP_NAME, layout(Vcol,sel_func), location=(0, 0), finalize=True)
+
+    window["-TABLE-"].update(values=t, select_rows=sel_data)
+    window["x"].update(values=val_x,set_to_index=sel_x)
+    window["y"].update(values=val_y,set_to_index=sel_y)
+    window["z"].update(values=val_z,set_to_index=sel_z)
+    window["func_list"].update(set_to_index=sel_f)
+    try:
+        FG.frange_update(window, STACK_FROM_TABLE)
+    except NameError as e:
+        FG.frange_update(window)
+    #window["Visual fit"].update(disabled=True)
+
 def ref_data_col():
+    global STACK_FROM_TABLE
     l = []
     for i in values["-TABLE-"]:
         data = Dset[window["-TABLE-"].get()[i][0]][1]
         l.append(data)
-    stacked = pd.concat(l, join="inner")
-    col = stacked.columns.values.tolist()
+    STACK_FROM_TABLE = pd.concat(l, join="inner")
+    col = STACK_FROM_TABLE.columns.values.tolist()
 
     def upd(i):
         if values[i] != []:
@@ -205,13 +223,14 @@ def ref_data_col():
     upd("x")
     upd("y")
     upd("z")
+    FG.frange_update(window, STACK_FROM_TABLE)
 
 
 def get_data(paths):
     global upd_num, T_oya, Dset, D
     Tadd = []
     for fp in paths:
-        D = pd.read_csv(fp, sep=" |\t|,", engine="python")
+        D = pd.read_csv(fp, sep=SEP_CHARACTOR, engine="python")
         Dset[fp] = [fp.split("/")[-1], D]
         Tadd.append([upd_num, fp, fp.split("/")[-1], len(D)])
     _T = pd.DataFrame(
@@ -320,7 +339,7 @@ def input_range(title, defaulut_min, default_max):
     return [t, in1, in2, c]
 
 
-def layout(col):
+def layout(col,sel_func=[]):
     """
     f_path(一番左の列)のみ非表示にしておく
     """
@@ -370,24 +389,8 @@ def layout(col):
         ]
     ]
 
-    Init_s = [slider("Delta", Prange["Delta"], 1000, 1),
-              slider("Gamma", Prange["Gamma"], 500, 1),
-              slider("Coef", Prange["Coef"], 1, 0.01),
-              slider("Offset", Prange["Offset"], 0, 0.01)]
 
-    Set_p_bound = [[sg.Text("Min", pad=((70, 20), (0, 0))), sg.Text("Max")],
-                   input_range("Delta", 0, 0),
-                   input_range("Gamma", 0, 0),
-                   input_range("Coef", 0, 0),
-                   input_range("Offset", 0, 0)]
-
-    Text, Sl = slider_("Min", (-10000, 10000), 0, 1, S=(30, 15))
-    Set_f_range = [slider("Max", (-10000, 10000), 0, 1, S=(30, 15), D=True),
-                   [Text, Sl, Fit_range_button]]
-
-    Fit_controler = [[sg.Frame("Initial parameter", Init_s, pad=((0, 5), (0, 5))), sg.Frame("Parameter bounds", Set_p_bound)],
-                     [sg.Frame("Fit range", Set_f_range)],
-                     [sg.Button('Delete', size=(10, 1), disabled=True), sg.Button('Fit', size=(10, 1)), sg.CBox("Active fit?", key="act_f_c")]]
+    Fit_controler = FG.layout(sel_func)
 
 
 
@@ -395,16 +398,18 @@ def layout(col):
     GUI のレイアウトの設定
     """
     return [[sg.Menu(menu_def, tearoff=False)],
-            [sg.Text("拡張子", size=(5, 1)), sg.Input(".txt", key="fe", size=(5, 1)),
-             sg.Input("", key="folder", enable_events=True, visible=False),
-             sg.FolderBrowse(button_text="Add folder", key="add_folder"),
-             sg.FilesBrowse(button_text="Add data files",
+            [
+                sg.Text("拡張子", size=(5, 1)), sg.Input(".txt", key="fe", size=(5, 1)),
+                sg.Input("", key="folder", enable_events=True, visible=False),
+                sg.FolderBrowse(button_text="Add folder", key="add_folder"),
+                sg.FilesBrowse(button_text="Add data files",
                             key="add_files", target="names", enable_events=True),
-             sg.Text("Sort by"),
-             sg.Combo(Vcol, enable_events=True,
+                sg.Text("Sort by"),
+                sg.Combo(Vcol, enable_events=True,
                       default_value="filename", key="sort"),
-             sg.CBox("Reverse order", key="sort_order", enable_events=True),
-             sg.Input("", key="names", enable_events=True, visible=False), sg.Button("test")],
+                sg.CBox("Reverse order", key="sort_order", enable_events=True),
+                sg.Input("", key="names", enable_events=True, visible=False), sg.Button("test")
+            ],
             # Browse,
             [sg.Table(
                 key='-TABLE-',
@@ -422,17 +427,17 @@ def layout(col):
                 right_click_menu=["", ["Select all", "My fit"]],
                 background_color='#aaaaaa',
                 alternating_row_color='#888888',
-                display_row_numbers = True), sg.Button("test2"), sg.Button("test3")],
+                display_row_numbers = True), sg.Button("test2"), sg.Button("Column Setting")],
             [sg.Text('_' * 120)],
             [
             sg.Frame("", buttons, key="buttons", border_width=1,),
             sg.Frame("Plot menu", sel_xyz, element_justification="center"),
-            sg.Frame("", Fit_controler, border_width=0)
+            sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
             ]
         ]
 
 
-window = sg.Window(app_name, layout(Vcol), location=(0, 0), finalize=True)
+window = sg.Window(APP_NAME, layout(Vcol), location=(0, 0), finalize=True)
 
 
 Selected_points = []
@@ -503,11 +508,9 @@ while True:
         window["x"].update(set_to_index=0)
 
     elif event == "test2":
-        Vcol.append("hoge")
-        T["hoge"] = T["f_path"]
-        table_update_data(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
+        print(window["x"].get()[0])
 
-    elif event == "test3":
+    elif event == "Column Setting":
         if Dset!={}:
             #AAA = latest_df(T_oya, values["sort"], values["sort_order"])
             apc, Vcol[1:] = ac.col_cnt(latest_df(T_oya, values["sort"], values["sort_order"]), Dset, Vcol[1:])
@@ -592,6 +595,13 @@ while True:
         fig.colorbar(pl_I, ax=ax_I)
         plt.pause(0.1)
 
+    elif event == "x":
+        try:
+            FG.frange_update(window, STACK_FROM_TABLE)
+        except NameError:
+            FG.frange_update(window)
+
+
     elif event == "B-Plot":
         x_sel = values["x"][0]
         y_sel = values["y"][0]
@@ -606,31 +616,28 @@ while True:
                 z = data[z_sel].values
                 ax.scatter(x,y,edgecolors="black",linewidth=0.5, alpha=0.40, label=Dset[window["-TABLE-"].get()[i][0]][0])
                 ax.legend()
-        elif values["plt_mode"] == "Color":
+        else:
             data_set = pd.DataFrame()
             for i in values["-TABLE-"]:
                 data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
                 data, new_yname = data_mode_ref(data, x_sel, y_sel)
                 data_set = data_set.append(data)
-            pl = ax.scatter(data_set[x_sel].values, data_set[new_yname].values, c=data_set[z_sel].values, cmap=cm, edgecolor="black",linewidth=0.40,alpha=0.3)
-            fig.colorbar(pl,ax=ax)
+            if values["plt_mode"] == "Color":
+                pl = ax.scatter(data_set[x_sel].values, data_set[new_yname].values, c=data_set[z_sel].values, cmap=cm, edgecolor="black",linewidth=0.40,alpha=0.3)
+                fig.colorbar(pl,ax=ax)
+            elif values["plt_mode"] == "3D":
+                ax = Init_ax(fig, x_sel, y_sel, place=111, _3D=True)
+                pl = ax.scatter3D(data_set[x_sel].values, data_set[new_yname].values, zs=data_set[z_sel].values, alpha=0.5)
 
         plt.pause(0.1)
 
+    elif event == "func_list":
+        fg_update(sel_func=values["func_list"], sel_data=values["-TABLE-"])
+
+    elif event in FG.par_bounds_names:
+        FG.prange_overwritten(window,event)
 
 
-    elif event in Pname:
-        if ax != None:
-            if pl_p_show == True:
-                pl_p[0].remove()
-            else:
-                pl_p_show = True
-            pl_p = pl_dynes(ax, np.min(V_vis), np.max(
-                V_vis), get_params(), "blue")
-            plt.pause(0.1)
-
-    elif event in Pname_c:
-        check_bounds(event)
 
     elif event == 'Undo':
         if fit_num > 0:
@@ -660,59 +667,8 @@ while True:
         window['-B-'].update(text='On' if f_range_c else 'Off',
                              button_color='white on green' if f_range_c else 'white on red')
 
-    elif event in ("Max", "Min"):
-        if (f_range_c == True) and (ax != None):
-            if pl_f_range_show == True:
-                pl_f_v.remove()
-                pl_f_rect.remove()
-            fmin = float(values["Min"])
-            fmax = float(values["Max"])
-            pl_f_v = ax.vlines([fmin, fmax], ax_Ymin, ax_Ymax, color="blue")
-            pl_f_rect = ax.add_patch(patches.Rectangle(xy=(
-                fmin, 0), width=fmax - fmin, height=ax_Ymax - ax_Ymin, fc="b", fill=True, alpha=0.1))
-
-            plt.pause(0.1)
-            pl_f_range_show = True
-            if values["act_f_c"] == True:
-                try:
-                    V_f, Diff_f = prepare_fit(V_vis, Diff_vis)
-                except NameError as e:
-                    print(e)
-                    continue
-                if pl_p_show == True:
-                    pl_p[0].remove()
-                    pl_p_show = False
-
-                if pl_f_show == True:
-                    pl_f_in[0].remove()
-                    pl_f_show = False
-                    if pl_f_lr_show == True:
-                        pl_f_r[0].remove()
-                        pl_f_l[0].remove()
-                        pl_f_lr_show = False
-
-                b_m, b_M = get_bounds()
-
-                try:
-                    popt, pcov = curve_fit(
-                        dynes, V_f, Diff_f, p0=get_params(), bounds=(b_m, b_M))
-                except (RuntimeError, ValueError) as e:
-                    print(e)
-                except TypeError as e:
-                    print(e)
-                else:
-                    print(popt)
-                    fmax, fmin = np.max(V_f), np.min(V_f)
-
-                    pl_f_in = pl_dynes(ax, fmin, fmax, popt, color="r")
-                    pl_f_show = True
-                    if f_range_c == True:
-                        pl_f_l = pl_dynes(ax, np.min(V_vis),
-                                          fmin, popt, color="y", LS="-")
-                        pl_f_r = pl_dynes(ax, fmax, np.max(
-                            V_vis), popt, color="y", LS="-")
-                        pl_f_lr_show = True
-                    plt.pause(0.1)
+    elif event in ("frange_max", "frange_min"):
+        FG.frange_slider_moved(window,values["frange_max"],values["frange_min"],event)
 
     elif event == 'Fit':
         fit_num += 1

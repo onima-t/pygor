@@ -15,9 +15,7 @@ import fitting_GUI as fg
 
 
 APP_NAME = "pygor"
-D_norm = 0.00046373
-ax_Ymax = 1.5
-ax_Ymin = 0
+
 cm = plt.cm.get_cmap('gist_rainbow_r')
 T_oya = pd.DataFrame()
 Vcol = ["f_path", "filename", "counts"]
@@ -111,7 +109,7 @@ def data_mode_ref(df, xname, yname):
         return 0#工事中
     new_yname = values["data_mode"] + " " + yname
     df[new_yname] = pd.Series(y)
-    print(y)
+    #print(y)
     return df,new_yname
 
 def check_bounds(name_c):
@@ -508,7 +506,14 @@ while True:
         window["x"].update(set_to_index=0)
 
     elif event == "test2":
-        print(window["x"].get()[0])
+        x_sel = values["x"][0]
+        y_sel = values["y"][0]
+        for i in values["-TABLE-"]:
+            data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
+            data, new_yname = data_mode_ref(data, x_sel, y_sel)
+            FG.func.fit(data[x_sel].values ,data[new_yname].values ,values)
+            print(new_yname)
+        #微分も入れれるようにしよう！＋　結果のプロット
 
     elif event == "Column Setting":
         if Dset!={}:
@@ -611,9 +616,9 @@ while True:
         if values["plt_mode"]=="Nomal":
             for i in values["-TABLE-"]:
                 data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
+                data, new_yname = data_mode_ref(data, x_sel, y_sel)
                 x = data[x_sel].values
-                y = data[y_sel].values
-                z = data[z_sel].values
+                y = data[new_yname].values
                 ax.scatter(x,y,edgecolors="black",linewidth=0.5, alpha=0.40, label=Dset[window["-TABLE-"].get()[i][0]][0])
                 ax.legend()
         else:

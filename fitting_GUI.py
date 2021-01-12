@@ -4,37 +4,9 @@ import pandas as pd
 import os
 import tkinter
 from tkinter import filedialog
+import lmfit as lf
 
 SLIDER_DEVIDE = 1000 #sliderを刻む数
-
-"""
-Fset=[
-    "func" :
-    "name" :
-    "par_info" : [
-        ["p0", p0_init, p0_min, p0_max],
-        ["p1", p1_init, p1_min, p1_max],
-        ...
-    ]
-]
-"""
-
-def dynes(E, delta, gamma, amp=1, offset=0):
-    T = type(np.zeros(1))
-    if type(E) != T and type(gamma) != T:
-        A = complex(E, -gamma)
-    else:
-        A = np.empty_like(E).astype(np.complex)
-        A.real = E
-        A.imag = -gamma
-        return amp * np.abs(np.real(A / (A**2 - delta**2)**0.5)) + offset
-
-
-
-
-def sqrt(x, p0, p1, offset):
-    return np.sqrt(p0+p1*x) + offset
-
 
 
 class Fit:
@@ -56,6 +28,25 @@ class Fit:
         self.bounds#フィッティング範囲["p0":[p0min,p0 max], p1":[p1min,p1max], ...]
         """
 
+    def fit(self, x_data, y_data, values):
+        model = lf.Model(self.func)
+        params = model.make_params()
+        for i in model.param_names:
+            params[i].set(
+                value=float(values[i]),
+                min=float(values[i+"_Min"]),
+                max=float(values[i+"_Max"]),
+                vary=True if values[i+"_Fix"]=="Bound" else False
+            )
+        self.result = model.fit(x=x_data, data=y_data, params=params, method='leastsq')
+        res=self.result.result.params
+        best_vals=[]
+        errors=[]
+        for i in model.param_names:
+            best_vals.append(res[i].value)
+            errors.append(res[i].stderr)
+        
+
 
 class Fit_GUI:
     def __init__(self, Fit_list):
@@ -69,11 +60,12 @@ class Fit_GUI:
         self.frange_slider_min=0
 
     def layout(self, sel_func):
-        print(sel_func)
         if sel_func == []:
             F=self.fit_dict[self.func_list[0]]
         else:
             F=self.fit_dict[sel_func[0]]
+
+        self.func=F
 
         self.par_bounds_names=[]
         self.pre_bounds={}
@@ -193,6 +185,39 @@ class Fit_GUI:
                     window[sep[0]].update(range=(new_min,old_max))
         except ValueError:
             window[event].update(value=self.pre_bounds[event])
+
+
+
+"""
+#template for setting
+
+Fset=[
+    "func" :
+    "name" :
+    "par_info" : [
+        ["p0", p0_init, p0_min, p0_max],
+        ["p1", p1_init, p1_min, p1_max],
+        ...
+    ]
+]
+
+関数の定義では変数名に必ず x を使うこと（lmfit）のフィットの際に用いるため
+→func.__code__.co_varnames で取得するようにする？
+"""
+
+def dynes(x, delta, gamma, amp=1, offset=0):
+    T = type(np.zeros(1))
+    if type(x) != T and type(gamma) != T:
+        A = complex(x, -gamma)
+    else:
+        A = np.empty_like(x).astype(np.complex)
+        A.real = x
+        A.imag = -gamma
+        return amp * np.abs(np.real(A / (A**2 - delta**2)**0.5)) + offset
+
+def sqrt(x, p0, p1, offset):
+    return np.sqrt(p0+p1*x) + offset
+
 
 
 dynes_set={

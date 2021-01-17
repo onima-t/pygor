@@ -22,7 +22,7 @@ class Appearence_controler:
         self.obj_col = []
         self.map={"counts":"{:.0f}"}
 
-    def renew_data(self,df,on_col):
+    def renew_data(self,df,on_col,new_rep=DEFAULT_REP):
         pnc=self.num_col
         self.df=df.copy()
         _df=df.copy()
@@ -35,7 +35,7 @@ class Appearence_controler:
             else:
                 self.obj_col.append(i)
 
-        self.map=dict(zip( self.num_col,[self.map[i] if (i in pnc) else DEFAULT_REP for i in self.num_col] ))
+        self.map=dict(zip( self.num_col,[self.map[i] if (i in pnc) else new_rep for i in self.num_col] ))
         for k,v in self.map.items():
             _df[k]=_df[k].map(lambda x: v.format(x))
         self.df_show=_df[on_col]
@@ -60,6 +60,7 @@ def col_cnt(df_latest, Dset, visible_column):
     global df_stats, apc, stats_l, df_LLL
     on_col=visible_column
     off_col=list(set(df_latest.columns.tolist()) - set(on_col) - set(["upd_num","f_path"]))
+    off_col.sort()
 
     apc = Appearence_controler()
     apc.renew_data(df_latest,on_col)

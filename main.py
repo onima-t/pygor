@@ -10,7 +10,7 @@ from tkinter import filedialog
 import picture
 import random
 import add_column as ac
-import fitting_GUI as fg
+import fitting as fg
 
 
 
@@ -30,18 +30,6 @@ AX_FONTSIZE = 18
 TICK_LABELSIZE = 15
 
 #folder_path=sg.PopupGetFolder("Choose a Folder")
-
-
-def dynes(E, delta, gamma, coef=1, offset=0):
-    T = type(np.zeros(1))
-    if type(E) != T and type(gamma) != T:
-        A = complex(E, -gamma)
-    else:
-        A = np.empty_like(E).astype(np.complex)
-        A.real = E
-        A.imag = -gamma
-    return coef * np.abs(np.real(A / (A**2 - delta**2)**0.5)) + offset
-
 
 def differentiate(x, y):
     d1 = (y[1:] - y[:-1]) / (x[1:] - x[:-1])
@@ -94,20 +82,24 @@ def pl_dynes(ax, min, max, params, color, num_p=300, LS="-", label=""):
     pl = ax.plot(x, y, color=color, linestyle=LS, label=label)
     return pl
 
-def data_mode_ref(df, xname, yname):
+def ref_data_mode(df, xname, yname, mode=None):
+    if mode==None:
+        M=values["data_mode"]
+    else:
+        M=mode
     ["Raw data","1st diff","2nd diff","3rd diff","Integral"]
     x,y = df[xname].values,df[yname].values
-    if values["data_mode"] == "Raw data":
+    if M == "Raw data":
         return data, yname
-    elif values["data_mode"] == "1st diff":
+    elif M == "1st diff":
         y = n_diff(x,y,1)
-    elif values["data_mode"] == "2nd diff":
+    elif M == "2nd diff":
         y = n_diff(x,y,2)
-    elif values["data_mode"] == "3rd diff":
+    elif M == "3rd diff":
         y = n_diff(x,y,3)
-    elif values["data_mode"] == "Integral":
+    elif M == "Integral":
         return 0#工事中
-    new_yname = values["data_mode"] + " " + yname
+    new_yname = M + " " + yname
     df[new_yname] = pd.Series(y)
     #print(y)
     return df,new_yname
@@ -122,17 +114,6 @@ def check_bounds(name_c):
         window[name].update(range=Prange[name])
 
 
-def get_bounds():
-    m = []
-    M = []
-    for i in Pname:
-        m.append(values[i + "_Min"] if values[i + "_c"] else -np.inf)
-        M.append(values[i + "_Max"] if values[i + "_c"] else np.inf)
-    return m, M
-
-
-def get_params():
-    return [values['Delta'], values['Gamma'], values['Coef'], values['Offset']]
 
 
 def prepare_fit(x, y):
@@ -145,22 +126,59 @@ def prepare_fit(x, y):
     else:
         return x, y
 
-def latest_df(df,idx_s, sort_order):
+def latest_df(df,idx_s="f_path", sort_order=True):
     if df.values.shape !=(0,0):
-        idx = df.groupby("f_path")["upd_num"].transform(
-            max) == df["upd_num"]  # 最新のindexを取得
+        idx = df.groupby("f_path")["upd_num"].transform(max) == df["upd_num"]  # 最新のindexを取得
         return df[idx].sort_values(idx_s, ascending=not sort_order)
     else:
         return df
 
-def table_update_data(idx_s, sel=None, sort_order=True):
+def interface_update():
+    global window, values
+    val_x=window["x"].get_list_values()
+    val_y=window["y"].get_list_values()
+    val_z=window["z"].get_list_values()
+    sel_x=window["x"].get_indexes()
+    sel_y=window["y"].get_indexes()
+    sel_z=window["z"].get_indexes()
+    sel_f=window["func_list"].get_indexes()[0]
+
+    FG.func.save_params(values)
+    window.close()
+    window = sg.Window(APP_NAME, layout(Vcol,values["func_list"]), location=(0, 0), finalize=True)
+
+    window["x"].update(values=val_x,set_to_index=sel_x)
+    window["y"].update(values=val_y,set_to_index=sel_y)
+    window["z"].update(values=val_z,set_to_index=sel_z)
+    window["func_list"].update(set_to_index=sel_f)
+    window["fe"].update(value=values["fe"])
+    window["sort"].update(value=values["sort"])
+    window["sort_order"].update(value=values["sort_order"])
+    window["frange_min"].update(value=values["frange_min"])
+    window["frange_max"].update(value=values["frange_max"])
+    window["rep_frange_max"].update(value=values["rep_frange_max"])
+    window["rep_frange_max"].update(value=values["rep_frange_max"])
+    window["rep_frange_max"].update(value=values["rep_frange_max"])
+    window["plt_mode"].update(value=values["plt_mode"])
+    window["data_mode"].update(value=values["data_mode"])
+
+
+def table_update_contents(idx_s, sel=None, sort_order=True):
     global window
     a=latest_df(T_oya, idx_s, sort_order)
-    apc.renew_data(a,Vcol)
+    apc.renew_data(a,Vcol, "{:.2e}")
     a=apc.df_show
 
-    window.close()
-    window = sg.Window(APP_NAME, layout(Vcol), location=(0, 0), finalize=True)
+    interface_update()
+
+    window["-TABLE-"].update(values=a[Vcol].values.tolist(), select_rows=sel)
+    window["Visual fit"].update(disabled=True)
+
+def table_update_contents_(idx_s, sel=None, sort_order=True):
+    global window
+    a=latest_df(T_oya, idx_s, sort_order)
+    apc.renew_data(a,Vcol, "{:.2e}")
+    a=apc.df_show
 
     window["-TABLE-"].update(values=a[Vcol].values.tolist(), select_rows=sel)
     window["Visual fit"].update(disabled=True)
@@ -174,54 +192,45 @@ def table_update_order(idx_s, sel=None, sort_order=True):
     window["-TABLE-"].update(values=a[Vcol].values.tolist(), select_rows=sel)
     window["Visual fit"].update(disabled=True)
 
-def fg_update(sel_func,sel_data=None):
-    global window
+def fg_update():
+    global window, values
     t=window["-TABLE-"].get()
-    val_x=window["x"].get_list_values()
-    val_y=window["y"].get_list_values()
-    val_z=window["z"].get_list_values()
-    sel_x=window["x"].get_indexes()
-    sel_y=window["y"].get_indexes()
-    sel_z=window["z"].get_indexes()
-    sel_f=window["func_list"].get_indexes()[0]
-
-    window.close()
-    window = sg.Window(APP_NAME, layout(Vcol,sel_func), location=(0, 0), finalize=True)
-
+    sel_data=values["-TABLE-"]
+    interface_update()
     window["-TABLE-"].update(values=t, select_rows=sel_data)
-    window["x"].update(values=val_x,set_to_index=sel_x)
-    window["y"].update(values=val_y,set_to_index=sel_y)
-    window["z"].update(values=val_z,set_to_index=sel_z)
-    window["func_list"].update(set_to_index=sel_f)
     try:
         FG.frange_update(window, STACK_FROM_TABLE)
     except NameError as e:
         FG.frange_update(window)
     #window["Visual fit"].update(disabled=True)
 
+TABLE_SELECTED=[]
 def ref_data_col():
-    global STACK_FROM_TABLE
-    l = []
-    for i in values["-TABLE-"]:
-        data = Dset[window["-TABLE-"].get()[i][0]][1]
-        l.append(data)
-    STACK_FROM_TABLE = pd.concat(l, join="inner")
-    col = STACK_FROM_TABLE.columns.values.tolist()
+    global STACK_FROM_TABLE, TABLE_SELECTED
+    if TABLE_SELECTED!=values["-TABLE-"]:
+        TABLE_SELECTED = values["-TABLE-"]
+        l = []
+        for i in values["-TABLE-"]:
+            data = Dset[window["-TABLE-"].get()[i][0]][1]
+            l.append(data)
+        STACK_FROM_TABLE = pd.concat(l, join="inner")
+        col = STACK_FROM_TABLE.columns.values.tolist()
 
-    def upd(i):
-        if values[i] != []:
-            if values[i][0] in col:
-                window[i].update(set_to_index=col.index(
-                    values[i][0]), values=col)
+        def upd(i):
+            if values[i] != []:
+                if values[i][0] in col:
+                    window[i].update(set_to_index=col.index(
+                        values[i][0]), values=col)
+                else:
+                    window[i].update(set_to_index=0, values=col)
             else:
                 window[i].update(set_to_index=0, values=col)
-        else:
-            window[i].update(set_to_index=0, values=col)
 
-    upd("x")
-    upd("y")
-    upd("z")
-    FG.frange_update(window, STACK_FROM_TABLE)
+        upd("x")
+        upd("y")
+        upd("z")
+        FG.frange_update(window, STACK_FROM_TABLE, values["frange_min"], values["frange_max"])
+
 
 
 def get_data(paths):
@@ -231,11 +240,9 @@ def get_data(paths):
         D = pd.read_csv(fp, sep=SEP_CHARACTOR, engine="python")
         Dset[fp] = [fp.split("/")[-1], D]
         Tadd.append([upd_num, fp, fp.split("/")[-1], len(D)])
-    _T = pd.DataFrame(
-        Tadd, columns=["upd_num", "f_path", "filename", "counts"])
+    _T = pd.DataFrame(Tadd, columns=["upd_num", "f_path", "filename", "counts"])
     T_oya = T_oya.append(_T)
-    table_update_data(values["sort"], sel=values["-TABLE-"],
-                      sort_order=values["sort_order"])
+    table_update_order(values["sort"], sel=values["-TABLE-"],sort_order=values["sort_order"])
     upd_num += 1
 
 
@@ -244,6 +251,8 @@ def undo():
     df = df[df["fit num"] != fit_num]
     table_update(values["sort"])
     fit_num -= 1
+
+#def CLICK_TABLE():
 
 
 def save_data():
@@ -364,7 +373,7 @@ def layout(col,sel_func=[]):
     buttons = [[sg.Button('Plot', size=S, disabled=True)],
                [sg.Button("Visual fit", size=S, disabled=True)],
                [sg.Button("Multi fit", size=S)],
-               [sg.Button("Check", size=S, disabled=True)],
+               [sg.Button("Check fit", size=S, disabled=True)],
                [sg.Button("Delta plot", size=S)],
                [sg.CBox("Error?", key="de_c", default=True)]
                #[sg.Button("My fit")],
@@ -503,17 +512,75 @@ while True:
     elif event == "test":
         print(values["names"])
         print(values["x"])
-        window["x"].update(set_to_index=0)
+        window["frange_max"].update(value=0.5)
 
     elif event == "test2":
         x_sel = values["x"][0]
         y_sel = values["y"][0]
+        ffn=values["func_list"][0] #fitting function name
+        data_info=[ffn+"_xdata",ffn+"_ydata",ffn+"_Data_type",ffn+"_fit_range_min",ffn+"_fit_range_max"]
+        fr_m  = float(values["rep_frange_min"])
+        fr_M  = float(values["rep_frange_max"])
+        res = []
+        _df = pd.DataFrame(columns=T_oya.columns)
         for i in values["-TABLE-"]:
+            sel_table =window["-TABLE-"].get()[i]
             data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
-            data, new_yname = data_mode_ref(data, x_sel, y_sel)
-            FG.func.fit(data[x_sel].values ,data[new_yname].values ,values)
-            print(new_yname)
-        #微分も入れれるようにしよう！＋　結果のプロット
+            data, new_yname = ref_data_mode(data, x_sel, y_sel)
+            data=data[data[x_sel]>=fr_m]
+            data=data[data[x_sel]<=fr_M]
+            try:
+                res_i, init_i = FG.func.fit(data[x_sel].values ,data[new_yname].values ,values)
+            except ValueError as e:
+                print(e)
+                sg.PopupError("Fitting Error!")
+                break
+            res.append([sel_table[0]] + res_i + [x_sel,y_sel,values["data_mode"],fr_m,fr_M] +init_i)
+
+            _df = _df.append(latest_df(T_oya).query("f_path == @sel_table[0]"))
+        else:#when for-loop finishes without any fitting error
+            res = pd.DataFrame(res, columns=["f_path"]+FG.func.columns+data_info+FG.func.columns_init).sort_values("f_path").drop("f_path", axis=1)
+            _df = _df.sort_values("f_path").reset_index(drop=True)
+            _df[FG.func.columns+data_info+FG.func.columns_init] = res
+            _df["upd_num"] = upd_num
+            _df = _df.replace({None:np.nan})#fitがうまく行かなかったら欠損値にしておく
+            T_oya = T_oya.append(_df)
+
+            add_col=False
+            for i in FG.func.columns:
+                if i not in T_oya.columns:
+                    print("test!")
+                    T_oya[i]=np.nan
+                if i not in Vcol:
+                    Vcol.append(i)
+                    add_col=True
+
+            if add_col:
+                table_update_contents(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
+            else:
+                table_update_contents_(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
+
+            upd_num+=1
+
+            #結果のプロット
+
+    elif event == "Check fit":
+        d4c={}
+        for i in df4check.columns:
+            d4c[i]=df4check[i].values[0]
+        data = Dset[d4c["f_path"]][1].copy()
+        fig = plt.figure(figsize=(8, 7), dpi=100)
+        ax = Init_ax(fig, d4c[ffn4c + "_xdata"], d4c[ffn4c+"_Data_type"]+" "+d4c[ffn4c + "_ydata"], place=111)
+        data, new_yname = ref_data_mode(data, d4c[ffn4c + "_xdata"], d4c[ffn4c + "_ydata"], mode=d4c[ffn4c+"_Data_type"])
+        xdata,ydata = data[d4c[ffn4c + "_xdata"]],data[new_yname]
+        ax.scatter(xdata,ydata,edgecolors="black",linewidth=0.5, alpha=0.40, label="Data points")
+
+        xmin,xmax = np.min(xdata.values), np.max(xdata.values)
+        fmin,fmax=d4c[ffn4c+"_fit_range_min"],d4c[ffn4c+"_fit_range_max"]
+        FG.fit_dict[ffn4c].plot_result(ax,d4c,xmin,xmax,fmin,fmax)
+
+        ax.legend()
+        plt.pause(0.1)
 
     elif event == "Column Setting":
         if Dset!={}:
@@ -521,7 +588,7 @@ while True:
             apc, Vcol[1:] = ac.col_cnt(latest_df(T_oya, values["sort"], values["sort_order"]), Dset, Vcol[1:])
             apc.df["upd_num"] = upd_num
             T_oya = T_oya.append(apc.df)
-            table_update_data(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
+            table_update_contents(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
 
             upd_num+=1
         else:
@@ -531,23 +598,25 @@ while True:
         if len(values["-TABLE-"]) == 0:
             window["Visual fit"].update(disabled=True)
             window["Plot"].update(disabled=True)
-            window["Check"].update(disabled=True)
+            window["Check fit"].update(disabled=True)
         else:
+            ref_data_col()
             if len(values["-TABLE-"]) == 1:
                 window["Visual fit"].update(disabled=False)
                 window["Plot"].update(disabled=False)
-                """
-                if window["-TABLE-"].get()[ values["-TABLE-"][0] ][3] >0:
-                    window["Check"].update(disabled=False)
-                else:
-                    window["Check"].update(disabled=True)
-                """
+                ffn4c=values["func_list"][0] #fitting function name
+                window["Check fit"].update(disabled=True)
+
+                if ffn4c+"_xdata" in T_oya.columns:
+                    df4check=latest_df(T_oya)
+                    df4check=df4check[df4check["f_path"] == window["-TABLE-"].get()[ values["-TABLE-"][0] ][0]]
+                    if not df4check[ffn4c+"_xdata"].isnull().values[0]:#選択中の関数でのfit結果が出力されているか？
+                        window["Check fit"].update(disabled=False)
+
             else:
                 window["Visual fit"].update(disabled=True)
                 window["Plot"].update(disabled=False)
-                window["Check"].update(disabled=True)
-
-            ref_data_col()
+                window["Check fit"].update(disabled=True)
 
     elif event in ["sort", "sort_order"]:
         table_update_order(values["sort"], sort_order=values["sort_order"])
@@ -556,22 +625,16 @@ while True:
         window["-TABLE-"].update(select_rows=np.arange(len(window["-TABLE-"].get())))
 
     elif event == "Visual fit":
-        vf_row = values["-TABLE-"][0]
-        vf_name = window["-TABLE-"].get()[vf_row][0]
-        d_num = fn_l.index(vf_name)
-        data_f = data[d_num]
-        V_vis = data_f[1].to_numpy()
-        I = data_f[2].to_numpy()
-        Diff_vis = differentiate(V_vis, I)
-
+        x_sel = values["x"][0]
+        y_sel = values["y"][0]
+        data = Dset[window["-TABLE-"].get()[values["-TABLE-"][0]][0]][1].copy()
+        data, new_yname = ref_data_mode(data, x_sel, y_sel)
         fig = plt.figure(figsize=(10, 7), dpi=100)
-        ax = Init_ax(fig, V_ax_label, "norm_dI/dV")
-        fig.canvas.mpl_connect('button_press_event', onclick)
+        ax = Init_ax(fig, x_sel, new_yname)
+        FG.func.VF_init(ax, data[x_sel], data[new_yname], values)
 
-        pl_d = ax.scatter(V_vis, Diff_vis, c="#5fd989", edgecolors="black")
-        w_V = np.max(V_vis) - np.min(V_vis)
-        ax.set_xlim(np.min(V_vis) - w_V * 0.05, np.max(V_vis) + w_V * 0.05)
-        plt.pause(0.1)
+    elif event in FG.func.Pnames:
+        FG.func.VF_slider_move(values)
 
     elif event == 'Plot':
         x_sel = values["x"][0]
@@ -616,7 +679,7 @@ while True:
         if values["plt_mode"]=="Nomal":
             for i in values["-TABLE-"]:
                 data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
-                data, new_yname = data_mode_ref(data, x_sel, y_sel)
+                data, new_yname = ref_data_mode(data, x_sel, y_sel)
                 x = data[x_sel].values
                 y = data[new_yname].values
                 ax.scatter(x,y,edgecolors="black",linewidth=0.5, alpha=0.40, label=Dset[window["-TABLE-"].get()[i][0]][0])
@@ -625,7 +688,7 @@ while True:
             data_set = pd.DataFrame()
             for i in values["-TABLE-"]:
                 data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
-                data, new_yname = data_mode_ref(data, x_sel, y_sel)
+                data, new_yname = ref_data_mode(data, x_sel, y_sel)
                 data_set = data_set.append(data)
             if values["plt_mode"] == "Color":
                 pl = ax.scatter(data_set[x_sel].values, data_set[new_yname].values, c=data_set[z_sel].values, cmap=cm, edgecolor="black",linewidth=0.40,alpha=0.3)
@@ -634,10 +697,11 @@ while True:
                 ax = Init_ax(fig, x_sel, y_sel, place=111, _3D=True)
                 pl = ax.scatter3D(data_set[x_sel].values, data_set[new_yname].values, zs=data_set[z_sel].values, alpha=0.5)
 
+        ax.set_ylabel(new_yname)
         plt.pause(0.1)
 
     elif event == "func_list":
-        fg_update(sel_func=values["func_list"], sel_data=values["-TABLE-"])
+        fg_update()
 
     elif event in FG.par_bounds_names:
         FG.prange_overwritten(window,event)

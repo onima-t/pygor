@@ -5,8 +5,10 @@ import os
 import tkinter
 from tkinter import filedialog
 import lmfit as lf
+from matplotlib import pyplot as plt
 
 SLIDER_DEVIDE = 1000 #sliderを刻む数
+PLOT_RESOLUTION = 1000
 
 
 class Fit:
@@ -22,11 +24,10 @@ class Fit:
             self.init_params[i[0]] = i[1]
             self.slider_params[i[0]] = i[2:]
             self.vary[i[0]] = True
-        """
-        self.frange#フィッティングレンジ[min,max]
-        self.slider_frange#フィッティングレンジのスライダー範囲[min,max]
-        self.bounds#フィッティング範囲["p0":[p0min,p0 max], p1":[p1min,p1max], ...]
-        """
+        self.columns=self.Pnames + [i+"_stderr" for i in self.Pnames]
+        self.columns_init=[i+"_init_val" for i in self.Pnames] + [i+"_fix" for i in self.Pnames] \
+            + [i+"_bound_min" for i in self.Pnames] + [i+"_bound_max" for i in self.Pnames]
+        self.ax=None
 
     def fit(self, x_data, y_data, values):
         model = lf.Model(self.func)
@@ -42,10 +43,64 @@ class Fit:
         res=self.result.result.params
         best_vals=[]
         errors=[]
+        init=[]
+        fix=[]
+        bm=[]
+        bM=[]
         for i in model.param_names:
             best_vals.append(res[i].value)
             errors.append(res[i].stderr)
-        
+            init.append(self.result.init_params[i].value)
+            fix.append(not self.result.init_params[i].vary)
+            bm.append(self.result.init_params[i].min)
+            bM.append(self.result.init_params[i].max)
+
+        return best_vals + errors, init + fix + bm + bM
+
+    def plot_result(self,ax,params,xmin,xmax,fmin,fmax):
+        P={}
+        for i in self.Pnames:
+            P[i]=params[i]
+
+        x_l=np.linspace(xmin,fmin,PLOT_RESOLUTION)
+        x_m=np.linspace(fmin,fmax,PLOT_RESOLUTION)
+        x_r=np.linspace(fmax,xmax,PLOT_RESOLUTION)
+        y_l=self.func(x_l,**P)
+        y_m=self.func(x_m,**P)
+        y_r=self.func(x_r,**P)
+
+        ax.plot(x_l,y_l, color="black")
+        ax.plot(x_m,y_m, color="r", label ="Fitting result")
+        ax.plot(x_r,y_r, color="black")
+
+    def save_params(self,values):
+        for i in self.Pnames:
+            self.init_params[i] = float(values[i])
+            self.slider_params[i] = [float(values[i+"_Min"]), float(values[i+"_Max"])]
+            self.vary[i] = True if values[i+"_Fix"]=="Bound" else False
+
+    def VF_init(self,ax,xdata,ydata,values):
+        self.ax=ax
+        ax.scatter(xdata,ydata,edgecolors="black",linewidth=0.5, alpha=0.40)
+        self.xmin, self.max = np.min(xdata), np.max(xdata)
+        self.x=np.linspace(np.min(xdata),np.max(xdata),PLOT_RESOLUTION)
+        par={}
+        for i in self.Pnames:
+            par[i] = float(values[i])
+        self.pl = ax.plot(self.x, self.func(self.x,**par), color="b")[0]
+        plt.pause(0.1)
+
+    def VF_slider_move(self,values):
+        if self.ax != None:
+            self.pl.remove()
+            par={}
+            for i in self.Pnames:
+                par[i] = float(values[i])
+
+            self.pl = self.ax.plot(self.x, self.func(self.x,**par), color="b")[0]
+            plt.pause(0.1)
+
+
 
 
 class Fit_GUI:
@@ -88,7 +143,7 @@ class Fit_GUI:
                         sg.Text("Min/Max", size=T_s),
                         sg.InputText(default_text=sp[0], size=(5,15), enable_events=True, key=param_name + "_Min", pad=((0,10),(0,0))),
                         sg.InputText(default_text=sp[1], size=(5,15), enable_events=True, key=param_name + "_Max"),
-                        sg.OptionMenu(["Bound","Fix","Free"], key=param_name + "_Fix")
+                        sg.OptionMenu(["Bound","Fix","Free"], default_value="Bound" if F.vary[param_name] else "Fix", key=param_name + "_Fix")
                     ]
                 ]
             )
@@ -134,17 +189,28 @@ class Fit_GUI:
             ]
         ]
 
-    def frange_update(self, window, df=None):
+    def frange_update(self, window, df=None, smin=None, smax=None):
         if type(df)!=type(None) and window["x"].get()!=[]:#tableとxデータが選択されているか
             sel_x = window["x"].get()[0]
             if df[sel_x].dtype!=np.object:#数字として扱えるデータが選択されているか
                 dsr = df.describe()
                 self.frange_slider_max = dsr.at["max",sel_x]
                 self.frange_slider_min = dsr.at["min",sel_x]
-                window["frange_min"].update(value=0)
-                window["frange_max"].update(value=1)
-                window["rep_frange_min"].update(value=self.frange_slider_min)
-                window["rep_frange_max"].update(value=self.frange_slider_max)
+                width = self.frange_slider_max - self.frange_slider_min
+                min = self.frange_slider_min
+
+                if smin ==None:
+                    window["frange_min"].update(value=0)
+                    window["rep_frange_min"].update(value=self.frange_slider_min)
+                else:
+                    window["frange_min"].update(value=smin)
+                    window["rep_frange_min"].update(value=str(min + smin*width))
+                if smax == None:
+                    window["frange_max"].update(value=1)
+                    window["rep_frange_max"].update(value=self.frange_slider_max)
+                else:
+                    window["frange_max"].update(value=smax)
+                    window["rep_frange_max"].update(value=str(min + smax*width))
 
     def frange_slider_moved(self,window,frange_max,frange_min,event):
         width = self.frange_slider_max - self.frange_slider_min
@@ -218,6 +284,9 @@ def dynes(x, delta, gamma, amp=1, offset=0):
 def sqrt(x, p0, p1, offset):
     return np.sqrt(p0+p1*x) + offset
 
+def poly(x,p0,p1):
+    return p0 + p1*x
+
 
 
 dynes_set={
@@ -241,4 +310,13 @@ sqrt_set = {
     ]
 }
 
-FIT_FUNCS=[Fit(**dynes_set),Fit(**sqrt_set)]
+poly_set = {
+    "func" : poly,
+    "name" : "poly",
+    "par_info" : [
+        ["p0", 0, -1, 1],
+        ["p1", 1, -5, 5],
+    ]
+}
+
+FIT_FUNCS=[Fit(**poly_set),Fit(**sqrt_set),Fit(**dynes_set)]

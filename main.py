@@ -29,6 +29,9 @@ SEP_CHARACTOR = " |\t|,"
 AX_FONTSIZE = 18
 TICK_LABELSIZE = 15
 
+
+
+
 #folder_path=sg.PopupGetFolder("Choose a Folder")
 
 def differentiate(x, y):
@@ -68,6 +71,13 @@ def Init_ax(fig, xlabel, ylabel, ymin=0, ymax=1.5, place=111, _3D=False):
     # ax.set_ylim(ymin,ymax)
     ax.grid(color='black', linestyle='dashed', linewidth=0.5)
     return ax
+
+def re_init_ax(ax,xlabel,ylabel):
+    ax_VF.cla()
+    ax.set_xlabel(xlabel, fontsize=AX_FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=AX_FONTSIZE)
+    ax.tick_params(labelsize=TICK_LABELSIZE)
+    ax.grid(color='black', linestyle='dashed', linewidth=0.5)
 
 
 def pl_remove(pl, pl_bool):
@@ -370,8 +380,7 @@ def layout(col,sel_func=[]):
     S = (8, 1)
 
 
-    buttons = [[sg.Button('Plot', size=S, disabled=True)],
-               [sg.Button("Visual fit", size=S, disabled=True)],
+    buttons = [[sg.Button("Visual fit", size=S, disabled=True)],
                [sg.Button("Multi fit", size=S)],
                [sg.Button("Check fit", size=S, disabled=True)],
                [sg.Button("Delta plot", size=S)],
@@ -387,13 +396,13 @@ def layout(col,sel_func=[]):
 
     sel_xyz = [
         [
-        sel("x"),sel("y"),sel("z")
+        sel("x"),sel("y"),sel("z"),sg.CBox("y_offset?",enable_events=True)
         ],
         [
         sg.OptionMenu(["Nomal", "Color", "3D"],key="plt_mode"),
         sg.OptionMenu(DATA_MODES,key="data_mode"),
-        sg.Button("B-Plot")
-        ]
+        sg.Button("Plot",disabled=True)
+        ],
     ]
 
 
@@ -406,7 +415,7 @@ def layout(col,sel_func=[]):
     """
     return [[sg.Menu(menu_def, tearoff=False)],
             [
-                sg.Text("拡張子", size=(5, 1)), sg.Input(".txt", key="fe", size=(5, 1)),
+                sg.Text("拡張子", size=(5, 1)), sg.Input(".txt", key="fe", size=(5, 1), disabled=True),
                 sg.Input("", key="folder", enable_events=True, visible=False),
                 sg.FolderBrowse(button_text="Add folder", key="add_folder"),
                 sg.FilesBrowse(button_text="Add data files",
@@ -439,6 +448,8 @@ def layout(col,sel_func=[]):
             [
             sg.Frame("", buttons, key="buttons", border_width=1,),
             sg.Frame("Plot menu", sel_xyz, element_justification="center"),
+            ],
+            [
             sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
             ]
         ]
@@ -485,6 +496,11 @@ f_cnd = []
 Dset = {}
 upd_num = 0
 
+fig_VF = plt.figure(figsize=(10, 7), dpi=100)
+ax_VF=Init_ax(fig_VF,"","")
+fig_VF.show()
+plt.close(fig_VF)#位置を初期化したいだけなのですぐ閉じる
+
 while True:
     event, values = window.read()
 
@@ -514,7 +530,7 @@ while True:
         print(values["x"])
         window["frange_max"].update(value=0.5)
 
-    elif event == "test2":
+    elif event == "Multi fit":
         x_sel = values["x"][0]
         y_sel = values["y"][0]
         ffn=values["func_list"][0] #fitting function name
@@ -625,43 +641,22 @@ while True:
         window["-TABLE-"].update(select_rows=np.arange(len(window["-TABLE-"].get())))
 
     elif event == "Visual fit":
+        VF_x,VF_y,VF_dx,VF_dy=fig_VF.canvas.manager.window.geometry().getRect()
+        fig_VF.clf()
+        plt.close(fig_VF)
+        del fig_VF,ax_VF
+
         x_sel = values["x"][0]
         y_sel = values["y"][0]
         data = Dset[window["-TABLE-"].get()[values["-TABLE-"][0]][0]][1].copy()
         data, new_yname = ref_data_mode(data, x_sel, y_sel)
-        fig = plt.figure(figsize=(10, 7), dpi=100)
-        ax = Init_ax(fig, x_sel, new_yname)
-        FG.func.VF_init(ax, data[x_sel], data[new_yname], values)
+        #fig_VF = plt.figure(figsize=(10, 7), dpi=100)
 
-    elif event in FG.func.Pnames:
-        FG.func.VF_slider_move(values)
+        fig_VF = plt.figure(figsize=(10, 7), dpi=100)
+        fig_VF.canvas.manager.window.setGeometry(VF_x,VF_y,VF_dx,VF_dy)
+        ax_VF=Init_ax(fig_VF, x_sel, new_yname)
+        FG.func.VF_init(ax_VF, data[x_sel].values, data[new_yname].values, values)
 
-    elif event == 'Plot':
-        x_sel = values["x"][0]
-        y_sel = values["y"][0]
-        z_sel = values["z"][0]
-        fig = plt.figure(figsize=(14, 7), dpi=100)
-        ax_I = Init_ax(fig, x_sel, y_sel, place=121)
-        ax_d = Init_ax(fig, x_sel, "dy/dx", place=122)
-        data_set = pd.DataFrame()
-
-        for i in values["-TABLE-"]:
-            data = Dset[window["-TABLE-"].get()[i][0]][1].copy()
-            xy = data[[x_sel, y_sel]].values
-            data["diff"] = pd.Series(differentiate(xy[:, 0], differentiate(xy[:, 0], xy[:, 1])))
-            data_set = data_set.append(data)
-
-        data_set = data_set.sort_values(z_sel).dropna(how="any")
-        x = data_set[x_sel].values
-        y = data_set[y_sel].values
-        z = data_set[z_sel].values
-        Diff = data_set["diff"]
-
-        pl_d = ax_d.scatter(x, Diff, c=z, cmap=cm,edgecolors="black", linewidth=0.5)
-        pl_I = ax_I.scatter(x, y, c=z, cmap=cm,edgecolors="black", linewidth=0.5)
-
-        fig.colorbar(pl_I, ax=ax_I)
-        plt.pause(0.1)
 
     elif event == "x":
         try:
@@ -670,7 +665,7 @@ while True:
             FG.frange_update(window)
 
 
-    elif event == "B-Plot":
+    elif event == "Plot":
         x_sel = values["x"][0]
         y_sel = values["y"][0]
         z_sel = values["z"][0]
@@ -703,10 +698,31 @@ while True:
     elif event == "func_list":
         fg_update()
 
+    elif event in [i+"_slider" for i in FG.func.Pnames]:
+        FG.par_slider_move(window,values,event)
+        if values["Active"]:
+            FG.func.VF_active_fit(values)
+        else:
+            FG.func.VF_par_slider_move(values)
+
+
     elif event in FG.par_bounds_names:
-        FG.prange_overwritten(window,event)
+        FG.par_range_overwritten(window,values,event)
 
+    elif event in ("frange_max", "frange_min"):
+        FG.frange_slider_move(window,values["frange_max"],values["frange_min"],event)
+        if values["Active"]:
+            FG.func.VF_frange_slider_move_(values)
+            FG.func.VF_active_fit(values)
+        else:
+            FG.func.VF_frange_slider_move(values)
 
+    elif event =="Active":
+        if values["Active"]:
+            FG.func.VF_active_fit(values)
+
+        else:
+            FG.func.VF_par_slider_move(values)
 
     elif event == 'Undo':
         if fit_num > 0:
@@ -725,19 +741,6 @@ while True:
         plt.pause(0.1)
         window["Delete"].update(disabled=True)
 
-    elif event == '-B-':                # if the normal button that changes color and text
-        if f_range_c == True:
-            if pl_f_range_show == True:
-                pl_f_v.remove()
-                pl_f_rect.remove()
-                plt.pause(0.1)
-                pl_f_range_show = False
-        f_range_c = not f_range_c
-        window['-B-'].update(text='On' if f_range_c else 'Off',
-                             button_color='white on green' if f_range_c else 'white on red')
-
-    elif event in ("frange_max", "frange_min"):
-        FG.frange_slider_moved(window,values["frange_max"],values["frange_min"],event)
 
     elif event == 'Fit':
         fit_num += 1
@@ -792,54 +795,6 @@ while True:
                 np.array(window["-TABLE-"].get())[:, 0] == vf_name)[0][0]
             table_update(values["sort"], sel=[a],
                          sort_order=values["sort_order"])
-
-    elif event == "Multi fit":
-        fit_num += 1
-        selected_row = values["-TABLE-"]
-        b_m, b_M = get_bounds()
-        init_p = get_params()
-        f_res = []
-        for i in selected_row:
-            pl_num = fn_l.index(window["-TABLE-"].get()[i][0])
-            T = data[pl_num][0].to_numpy()
-            V = data[pl_num][1].to_numpy()
-            I = data[pl_num][2].to_numpy()
-            Diff = differentiate(V, I)
-
-            V_f, Diff_f = prepare_fit(V, Diff)
-            try:
-                popt, pcov = curve_fit(
-                    dynes, V_f, Diff_f, p0=init_p, bounds=(b_m, b_M))
-            except (RuntimeError, ValueError) as e:
-                print(e)
-            else:
-                f_res.append([fit_num] + table[pl_num] + popt.tolist() +
-                             np.diag(pcov).tolist())
-                f_cnd.append([fit_num] + table[pl_num][:1] + [np.max(V_f), np.min(V_f)] +
-                             init_p + b_m + b_M)
-        df = df.append(pd.DataFrame(
-            f_res, columns=df.columns), ignore_index=True)
-        table_update(values["sort"], sel=selected_row,
-                     sort_order=values["sort_order"])
-
-    elif event == "Delta plot":
-        pl_delta(values["de_c"])
-
-    elif event == "Check":
-        pl_check()
-
-    elif event == "Save":
-        save_data()
-
-    elif event == "Change":
-        img_ch = random.uniform(0, 100)  # 0から100の間で乱数を生成
-        if img_ch < 48:
-            window["img"].update(data=picture.B)
-        elif img_ch < 96:
-            window["img"].update(data=picture.A)
-        else:
-            window["img"].update(data=picture.C)
-
 
 """
     elif event == "My fit":

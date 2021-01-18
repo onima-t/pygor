@@ -5,14 +5,18 @@ import os
 import tkinter
 from tkinter import filedialog
 import lmfit as lf
+import matplotlib.patches as patches
 from matplotlib import pyplot as plt
 
 SLIDER_DEVIDE = 1000 #sliderを刻む数
 PLOT_RESOLUTION = 1000
-
+PLOT_INTERVAL = 1/30
+YLIM_EXPAND = 0.05
 
 class Fit:
+    l,m,r=None,None,None
     def __init__(self, func, name, par_info):
+        global ax
         self.func = func#関数
         self.name = name#表示名
         self.Pnames=[]#names of the parameters ["p0", "p1", ...]
@@ -27,9 +31,12 @@ class Fit:
         self.columns=self.Pnames + [i+"_stderr" for i in self.Pnames]
         self.columns_init=[i+"_init_val" for i in self.Pnames] + [i+"_fix" for i in self.Pnames] \
             + [i+"_bound_min" for i in self.Pnames] + [i+"_bound_max" for i in self.Pnames]
-        self.ax=None
+        ax=None
+        self.FLAG_AX_EXISTS=False
+        self.FLAG_SHOW_FITTING_RESULT=False
+        self.FLAG_SHOW_PLOT_INIT_PARAMS=False
 
-    def fit(self, x_data, y_data, values):
+    def fit(self, x_data, y_data, values, mode=None):
         model = lf.Model(self.func)
         params = model.make_params()
         for i in model.param_names:
@@ -41,21 +48,27 @@ class Fit:
             )
         self.result = model.fit(x=x_data, data=y_data, params=params, method='leastsq')
         res=self.result.result.params
-        best_vals=[]
-        errors=[]
-        init=[]
-        fix=[]
-        bm=[]
-        bM=[]
-        for i in model.param_names:
-            best_vals.append(res[i].value)
-            errors.append(res[i].stderr)
-            init.append(self.result.init_params[i].value)
-            fix.append(not self.result.init_params[i].vary)
-            bm.append(self.result.init_params[i].min)
-            bM.append(self.result.init_params[i].max)
+        if mode==None:
+            best_vals=[]
+            errors=[]
+            init=[]
+            fix=[]
+            bm=[]
+            bM=[]
+            for i in model.param_names:
+                best_vals.append(res[i].value)
+                errors.append(res[i].stderr)
+                init.append(self.result.init_params[i].value)
+                fix.append(not self.result.init_params[i].vary)
+                bm.append(self.result.init_params[i].min)
+                bM.append(self.result.init_params[i].max)
 
-        return best_vals + errors, init + fix + bm + bM
+            return best_vals + errors, init + fix + bm + bM
+        elif mode=="Active":
+            best_vals={}
+            for i in model.param_names:
+                best_vals[i] = res[i].value
+            return best_vals
 
     def plot_result(self,ax,params,xmin,xmax,fmin,fmax):
         P={}
@@ -69,9 +82,10 @@ class Fit:
         y_m=self.func(x_m,**P)
         y_r=self.func(x_r,**P)
 
-        ax.plot(x_l,y_l, color="black")
-        ax.plot(x_m,y_m, color="r", label ="Fitting result")
-        ax.plot(x_r,y_r, color="black")
+        l=ax.plot(x_l,y_l, color="black")[0]
+        m=ax.plot(x_m,y_m, color="r", label ="Fitting result")[0]
+        r=ax.plot(x_r,y_r, color="black")[0]
+        return l,m,r
 
     def save_params(self,values):
         for i in self.Pnames:
@@ -79,26 +93,91 @@ class Fit:
             self.slider_params[i] = [float(values[i+"_Min"]), float(values[i+"_Max"])]
             self.vary[i] = True if values[i+"_Fix"]=="Bound" else False
 
-    def VF_init(self,ax,xdata,ydata,values):
-        self.ax=ax
-        ax.scatter(xdata,ydata,edgecolors="black",linewidth=0.5, alpha=0.40)
-        self.xmin, self.max = np.min(xdata), np.max(xdata)
+    def plot_frange(self,values):
+        global pl_vline,pl_rect,fmin,fmax
+        fmin,fmax = float(values["rep_frange_min"]),float(values["rep_frange_max"])
+        plt_ymin,plt_ymax = ax.get_ylim()
+        pl_vline = ax.vlines([fmin,fmax],plt_ymin,plt_ymax,color="b",linewidth=1,alpha=0.2)
+        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,1000*plt_ymin), width=fmax-fmin, height =2000*(plt_ymax - plt_ymin), fc="b",fill=True,alpha=0.05))
+
+    def VF_init(self,axes,xd,yd,values):
+        global ymin,ymax,pl,ax,xdata,ydata
+        self.FLAG_AX_EXISTS=True
+        ax,xdata,ydata = axes,xd,yd
+        ax.scatter(xdata,ydata,c="black", alpha=0.40)
+        #self.xmin, self.xmax = np.min(xdata), np.max(xdata)
         self.x=np.linspace(np.min(xdata),np.max(xdata),PLOT_RESOLUTION)
         par={}
         for i in self.Pnames:
             par[i] = float(values[i])
-        self.pl = ax.plot(self.x, self.func(self.x,**par), color="b")[0]
-        plt.pause(0.1)
+        y_width=np.max(ydata)-np.min(ydata)
+        ymin = np.min(ydata)-y_width*YLIM_EXPAND
+        ymax = np.max(ydata)+y_width*YLIM_EXPAND
+        ax.set_ylim(ymin,ymax)
+        self.plot_frange(values)
+        if values["Active"]:
+            self.VF_active_fit(values)
+        else:
+            pl = ax.plot(self.x, self.func(self.x,**par), color="b")[0]
+            self.FLAG_SHOW_PLOT_INIT_PARAMS=True
+        plt.pause(PLOT_INTERVAL)
 
-    def VF_slider_move(self,values):
-        if self.ax != None:
-            self.pl.remove()
+
+    def VF_par_slider_move(self,values):
+        global pl
+        if self.FLAG_AX_EXISTS:
+            if self.FLAG_SHOW_FITTING_RESULT:
+                l.remove()
+                m.remove()
+                r.remove()
+                self.FLAG_SHOW_FITTING_RESULT=False
+            if self.FLAG_SHOW_PLOT_INIT_PARAMS:
+                pl.remove()
             par={}
             for i in self.Pnames:
                 par[i] = float(values[i])
 
-            self.pl = self.ax.plot(self.x, self.func(self.x,**par), color="b")[0]
-            plt.pause(0.1)
+            pl = ax.plot(self.x, self.func(self.x,**par), color="b")[0]
+            self.FLAG_SHOW_PLOT_INIT_PARAMS=True
+            plt.pause(PLOT_INTERVAL)
+
+    def VF_frange_slider_move(self,values):
+        if self.FLAG_AX_EXISTS:
+            pl_vline.remove()
+            pl_rect.remove()
+            self.plot_frange(values)
+            plt.pause(PLOT_INTERVAL)
+
+    def VF_frange_slider_move_(self,values):
+        if self.FLAG_AX_EXISTS:
+            pl_vline.remove()
+            pl_rect.remove()
+            self.plot_frange(values)
+
+    def VF_active_fit(self,values):
+        global l,m,r
+        if self.FLAG_AX_EXISTS:
+            if self.FLAG_SHOW_PLOT_INIT_PARAMS:
+                pl.remove()
+                self.FLAG_SHOW_PLOT_INIT_PARAMS=False
+            Y=ydata[xdata<fmax]
+            X=xdata[xdata<fmax]
+            Y=Y[X>fmin]
+            X=X[X>fmin]
+            try:
+                fit_res_params = self.fit(X,Y,values, mode="Active")
+            except (TypeError,ValueError) as e:
+                print(e)
+                return None
+            if self.FLAG_SHOW_FITTING_RESULT:
+                l.remove()
+                m.remove()
+                r.remove()
+            l,m,r = self.plot_result(ax,fit_res_params,np.min(xdata),np.max(xdata),fmin,fmax)
+            self.FLAG_SHOW_FITTING_RESULT=True
+            plt.pause(PLOT_INTERVAL)
+            self.test=l
+
 
 
 
@@ -123,21 +202,22 @@ class Fit_GUI:
         self.func=F
 
         self.par_bounds_names=[]
-        self.pre_bounds={}
+        self.par_bounds={}
         def param_setting(param_name):
             sp=F.slider_params[param_name]
             ip=F.init_params[param_name]
-            slider_width = sp[1] - sp[0]
+            slider_val = (ip-sp[0])/(sp[1] - sp[0])
             T_s=(7, 1)
             self.par_bounds_names.append(param_name + "_Min")
             self.par_bounds_names.append(param_name + "_Max")
-            self.pre_bounds[param_name+"_Min"]=sp[0]
-            self.pre_bounds[param_name+"_Max"]=sp[1]
+            self.par_bounds[param_name+"_Min"]=sp[0]
+            self.par_bounds[param_name+"_Max"]=sp[1]
             return sg.Frame(param_name, layout=[
                     [
                         sg.Text("Init param", size=T_s),
-                        sg.Slider(sp, ip ,slider_width/SLIDER_DEVIDE, orientation = "h",
-                        size=(20,15), key=param_name, enable_events=True)
+                        sg.Slider([0,1], slider_val, 1/SLIDER_DEVIDE, orientation="h", disable_number_display=True,
+                        size=(20,15), key=param_name+"_slider", enable_events=True),
+                        sg.Input(ip, size=(5,1), key=param_name, disabled=True)
                     ],
                     [
                         sg.Text("Min/Max", size=T_s),
@@ -157,20 +237,20 @@ class Fit_GUI:
         set_f_range=[
             [
                 sg.Text("Max", size=(5,1)),
-                sg.Slider([0,1], 1, 2/SLIDER_DEVIDE, size=(30,15), disable_number_display=True,
+                sg.Slider([0,1], 1, 1/SLIDER_DEVIDE, size=(30,15), disable_number_display=True,
                     key="frange_max", orientation="h", enable_events=True),
                 sg.Input("1", size=(5,1), key="rep_frange_max", )
             ],
             [
                 sg.Text("Min", size=(5,1)),
-                sg.Slider([0,1], 0, 2/SLIDER_DEVIDE, size=(30,15), disable_number_display=True,
+                sg.Slider([0,1], 0, 1/SLIDER_DEVIDE, size=(30,15), disable_number_display=True,
                     key="frange_min", orientation="h", enable_events=True),
                 sg.Input("0", size=(5,1), key="rep_frange_min", )
             ]
         ]
 
         output=[
-            [sg.CBox("Active fit", key="Active")],
+            [sg.CBox("Active fit", key="Active", enable_events=True)],
             [sg.Button("Fit")]
         ]
 
@@ -212,7 +292,7 @@ class Fit_GUI:
                     window["frange_max"].update(value=smax)
                     window["rep_frange_max"].update(value=str(min + smax*width))
 
-    def frange_slider_moved(self,window,frange_max,frange_min,event):
+    def frange_slider_move(self,window,frange_max,frange_min,event):
         width = self.frange_slider_max - self.frange_slider_min
         min = self.frange_slider_min
         sl_val_M = frange_max*width + min
@@ -226,31 +306,50 @@ class Fit_GUI:
         window["rep_frange_max"].update(value=str(sl_val_M))
         window["rep_frange_min"].update(value=str(sl_val_m))
 
-    def prange_overwritten(self,window,event):
+    def par_slider_move(self,window,values,event):
+        pname=event.split("_")[0]
+        B=self.par_bounds
+        val = float(values[pname+"_slider"])*(B[pname+"_Max"]-B[pname+"_Min"]) + B[pname+"_Min"]
+        window[pname].update(value=val)
+        #window[pname].update(value="{:.3e}".format(val))
+
+
+    def par_range_overwritten(self,window,values,event):
+        B=self.par_bounds.copy()
+        self.test = window[event].get()
+        self.test1 = window[event].get() in ["","-"]
         try:
-            if window[event].get()=="":
-                self.pre_bounds[event]=0
-            else:
-                self.pre_bounds[event]=float(window[event].get())
+            if not self.test1:
+                print("aaaa")
+                self.par_bounds[event]=float(window[event].get())
+
             sep=event.split("_")
+            slider_val = values[sep[0]+"_slider"]*(B[sep[0]+"_Max"]-B[sep[0]+"_Min"]) + B[sep[0]+"_Min"]
+            try:
+                slider_val = (slider_val - self.par_bounds[sep[0]+"_Min"])/(self.par_bounds[sep[0]+"_Max"] - self.par_bounds[sep[0]+"_Min"])
+            except ZeroDivisionError:
+                slider_val = 0
+
             if sep[1] == "Max":
-                new_max=self.pre_bounds[event]
+                new_max=self.par_bounds[event]
                 old_min=float(window[sep[0]+"_Min"].get())
                 if new_max<old_min:
                     window[sep[0]+"_Min"].update(value=new_max)
-                    window[sep[0]].update(range=(new_max,new_max))
+                    window[sep[0]+"_slider"].update(value=slider_val)
                 else:
-                    window[sep[0]].update(range=(old_min,new_max))
+                    window[sep[0]+"_slider"].update(value=slider_val)
             elif sep[1] == "Min":
-                new_min=self.pre_bounds[event]
+                new_min=self.par_bounds[event]
                 old_max=float(window[sep[0]+"_Max"].get())
                 if new_min>old_max:
                     window[sep[0]+"_Max"].update(value=new_min)
-                    window[sep[0]].update(range=(new_min,new_min))
+                    window[sep[0]+"_slider"].update(value=slider_val)
                 else:
-                    window[sep[0]].update(range=(new_min,old_max))
-        except ValueError:
-            window[event].update(value=self.pre_bounds[event])
+                    window[sep[0]+"_slider"].update(value=slider_val)
+            self.par_slider_move(window,values,event)
+        except ValueError as e:
+            window[event].update(value=self.par_bounds[event])
+            print(e)
 
 
 
@@ -266,6 +365,8 @@ Fset=[
         ...
     ]
 ]
+
+[[注意]]パラメータ名には _ を使わないこと
 
 関数の定義では変数名に必ず x を使うこと（lmfit）のフィットの際に用いるため
 →func.__code__.co_varnames で取得するようにする？

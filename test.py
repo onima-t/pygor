@@ -1,16 +1,18 @@
-import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib.patches as patches
-import PySimpleGUI as sg
-import pandas as pd
-import os
-import tkinter
-from tkinter import filedialog
+import matplotlib
+import matplotlib.pyplot as plt
 
-class loading:
-    def __init__(self):
-        print("aaa")
-        self.A=12
+def move_figure(f, x, y):
+    """Move figure's upper left corner to pixel (x, y)"""
+    backend = matplotlib.get_backend()
+    if backend == 'TkAgg':
+        f.canvas.manager.window.wm_geometry("+%d+%d" % (x, y))
+    elif backend == 'WXAgg':
+        f.canvas.manager.window.SetPosition((x, y))
+    else:
+        # This works for QT and GTK
+        # You can also use window.setGeometry
+        f.canvas.manager.window.move(x, y)
 
-a=loading
-a.A
+f, ax = plt.subplots()
+move_figure(f, 0,0 )
+plt.show()

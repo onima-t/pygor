@@ -150,7 +150,7 @@ class Fit:
             self.plot_frange(values)
             plt.pause(PLOT_INTERVAL)
 
-    def VF_frange_slider_move_(self,values):
+    def VF_frange_sflider_move_(self,values):
         if self.FLAG_AX_EXISTS:
             pl_vline.remove()
             pl_rect.remove()
@@ -219,13 +219,13 @@ class Fit_GUI:
                         sg.Text("Init param", size=T_s),
                         sg.Slider([0,1], slider_val, 1/SLIDER_DEVIDE, orientation="h", disable_number_display=True,
                         size=(20,15), key=param_name+"_slider", enable_events=True),
-                        sg.Input(ip, size=(5,1), key=param_name, disabled=True)
+                        sg.Input(ip, size=(5,1), key=param_name, enable_events=True)
                     ],
                     [
                         sg.Text("Min/Max", size=T_s),
                         sg.InputText(default_text=sp[0], size=(5,15), enable_events=True, key=param_name + "_Min", pad=((0,10),(0,0))),
                         sg.InputText(default_text=sp[1], size=(5,15), enable_events=True, key=param_name + "_Max"),
-                        sg.OptionMenu(["Bound","Fix","Free"], default_value="Bound" if F.vary[param_name] else "Fix", key=param_name + "_Fix")
+                        sg.OptionMenu(["Bound","Fix"], default_value="Bound" if F.vary[param_name] else "Fix", key=param_name + "_Fix")
                     ]
                 ]
             )
@@ -314,7 +314,7 @@ class Fit_GUI:
         val = float(values[pname+"_slider"])*(B[pname+"_Max"]-B[pname+"_Min"]) + B[pname+"_Min"]
         window[pname].update(value=val)
         #window[pname].update(value="{:.3e}".format(val))
-
+        self.func.init_params[pname] = val
 
     def par_range_overwritten(self,window,values,event):
         B=self.par_bounds.copy()
@@ -326,9 +326,9 @@ class Fit_GUI:
                 self.par_bounds[event]=float(window[event].get())
 
             sep=event.split("_")
-            slider_val = values[sep[0]+"_slider"]*(B[sep[0]+"_Max"]-B[sep[0]+"_Min"]) + B[sep[0]+"_Min"]
+            val = values[sep[0]+"_slider"]*(B[sep[0]+"_Max"]-B[sep[0]+"_Min"]) + B[sep[0]+"_Min"]
             try:
-                slider_val = (slider_val - self.par_bounds[sep[0]+"_Min"])/(self.par_bounds[sep[0]+"_Max"] - self.par_bounds[sep[0]+"_Min"])
+                slider_val = (val - self.par_bounds[sep[0]+"_Min"])/(self.par_bounds[sep[0]+"_Max"] - self.par_bounds[sep[0]+"_Min"])
             except ZeroDivisionError:
                 slider_val = 0
 
@@ -340,6 +340,10 @@ class Fit_GUI:
                     window[sep[0]+"_slider"].update(value=slider_val)
                 else:
                     window[sep[0]+"_slider"].update(value=slider_val)
+                if new_max < self.func.init_params[sep[0]]:
+                    self.func.init_params[sep[0]]=new_max
+                    window[sep[0]].update(value=new_max)
+
             elif sep[1] == "Min":
                 new_min=self.par_bounds[event]
                 old_max=float(window[sep[0]+"_Max"].get())
@@ -348,12 +352,39 @@ class Fit_GUI:
                     window[sep[0]+"_slider"].update(value=slider_val)
                 else:
                     window[sep[0]+"_slider"].update(value=slider_val)
+                if new_min > self.func.init_params[sep[0]]:
+                    self.func.init_params[sep[0]]=new_min
+                    window[sep[0]].update(value=new_min)
+
             self.par_slider_move(window,values,event)
         except ValueError as e:
             window[event].update(value=self.par_bounds[event])
             print(e)
 
+    def init_par_overwritten(self,window,values,pname):
+        #入力値がいい感じになってるか判定
+        if values[pname] in ["","-"]:
+            input = self.func.init_params[pname]
+        else:
+            try:
+                input = float(values[pname])
+            except ValueError:
+                input = self.func.init_params[pname]
 
+        if input<float(values[pname + "_Min"]):
+            self.par_bounds[pname+"_Min"]=input
+            window[pname+"_Min"].update(value=input)
+        if input>float(values[pname + "_Max"]):
+            self.par_bounds[pname+"_Max"]=input
+            window[pname+"_Max"].update(value=input)
+        try:
+            slider_val = (input - self.par_bounds[pname+"_Min"])/(self.par_bounds[pname+"_Max"] - self.par_bounds[pname+"_Min"])
+        except ZeroDivisionError as e:
+            print(e)
+            slider_val = 0
+
+        self.func.init_params[pname] = input
+        window[pname+"_slider"].update(value=slider_val)
 
 """
 #template for setting

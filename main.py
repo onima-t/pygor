@@ -671,6 +671,9 @@ while True:
         if upd_num >= 0:
             undo()
 
+    elif event in FG.func.Pnames:
+        FG.init_par_overwritten(window,values,event)
+
     elif event == 'Delete':
         pl_select_show = False
         Diff_vis = np.delete(Diff_vis, Selected_points)

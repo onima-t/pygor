@@ -114,6 +114,17 @@ def ref_data_mode(df, xname, yname, mode=None):
     #print(y)
     return df,new_yname
 
+def ref_fit_info():
+    path=window["-TABLE-"].get()[values["-TABLE-"][0]][0]
+    T = latest_df(T_oya).query("f_path == @path")
+    l = T.columns
+    info = ""
+    for col in FG.func.columns_data + FG.func.columns_init:
+        if col in T.columns:
+            info = info + col + " : " + str(T[col].values[0]) + "\n"
+    info = info[:-1]
+    window["info"].update(value=info)
+
 def check_bounds(name_c):
     name = name_c[:-2]
     if values[name_c] == True:
@@ -257,10 +268,10 @@ def get_data(paths):
 
 
 def undo():
-    global upd_num, df
-    df = df[df["fit num"] != fit_num]
-    table_update(values["sort"])
-    fit_num -= 1
+    global upd_num, T_oya
+    T_oya = T_oya[T_oya["upd_num"] != upd_num]
+    table_update_contents_(values["sort"])
+    upd_num -= 1
 
 #def CLICK_TABLE():
 
@@ -285,75 +296,6 @@ def save_data():
         print(e)
         sg.popup("Failed to save the data.")
 
-
-def pl_delta(e_c=True):
-    idx = df.groupby("filename")["fit num"].transform(max) == df["fit num"]
-    latest = df[idx]
-    latest = latest[["T", "Delta", "Gamma", "s_D", "s_G"]].dropna(
-        how="any")  # 行に一つでも欠損値があればlatestから削除
-    Temp = latest["T"].to_numpy()
-    Delta = latest["Delta"].to_numpy()
-    s_D = latest["s_D"].to_numpy()**(1 / 2)
-    fig = plt.figure(figsize=(7, 7), dpi=100)
-    ax = Init_ax(fig, "T (K)", r"$\Delta \ (\mu \rm{eV})$", ymin=0, ymax=np.max(
-        Delta) * 1.1, place=111)
-    if e_c == True:
-        ax.errorbar(x=Temp, y=Delta, yerr=s_D, fmt="o",
-                    capsize=2, capthick=0.5, ecolor="black")
-    elif e_c == False:
-        ax.errorbar(x=Temp, y=Delta, fmt="o")
-    plt.pause(0.1)
-
-
-def pl_check():
-    fig = plt.figure(figsize=(10, 7), dpi=100)
-    ax = Init_ax(fig, V_ax_label, "norm_dI/dV", place=111)
-    sel_num = values["-TABLE-"][0]
-
-    idx = df.groupby("filename")["fit num"].transform(
-        max) == df["fit num"]  # 最新のfitのindexを取得
-    a = df[idx]
-    pa = a[a["filename"] == window["-TABLE-"].get()[sel_num][0]
-           ].values[0][4:8].tolist()
-    a = a[a["filename"] == window["-TABLE-"].get()[sel_num][0]
-          ].values[0][-2:].tolist()
-
-    pl_num = fn_l.index(window["-TABLE-"].get()[sel_num][0])
-    T = data[pl_num][0].to_numpy()
-    V = data[pl_num][1].to_numpy()
-    I = data[pl_num][2].to_numpy()
-    Diff = differentiate(V, I)
-    ax.scatter(V, Diff, c="#c8326d", vmin=1, vmax=9,
-               label="Data points", edgecolors="black", linewidth=0.5)
-    pl_dynes(ax, a[1], np.min(V), pa, "y")
-    pl_dynes(ax, np.max(V), a[0], pa, "y")
-    pl_dynes(ax, a[0], a[1], pa, "blue", label="Fitting curve")
-    ax.legend()
-    plt.pause(0.1)
-
-
-def slider(name, range, init, width, S=(15, 15), D=False):
-    S = sg.Slider(range, init, width, orientation='h',
-                  size=S, key=name, enable_events=True, disable_number_display=D)
-    T = sg.Text(name, size=(6, 1))
-    return [T, S]
-
-
-def slider_(name, range, init, width, S=(15, 15)):
-    S = sg.Slider(range, init, width, orientation='h', tick_interval=5000,
-                  size=S, key=name, disable_number_display=True, enable_events=True)
-    T = sg.Text(name, size=(6, 1))
-    return T, S
-
-
-def input_range(title, defaulut_min, default_max):
-    t = sg.Text(title, size=(6, 1))
-    in1 = sg.InputText(default_text=defaulut_min, size=(
-        5, 15), key=title + '_Min', pad=((0, 10), (0, 0)))
-    in2 = sg.InputText(default_text=default_max,
-                       size=(5, 15), key=title + "_Max")
-    c = sg.CBox("", key=title + "_c", enable_events=True)
-    return [t, in1, in2, c]
 
 
 def layout(col,sel_func=[]):
@@ -383,7 +325,6 @@ def layout(col,sel_func=[]):
     buttons = [[sg.Button("Visual fit", size=S, disabled=True)],
                [sg.Button("Multi fit", size=S)],
                [sg.Button("Check fit", size=S, disabled=True)],
-               [sg.Button("Delta plot", size=S)],
                [sg.CBox("Error?", key="de_c", default=True)]
                #[sg.Button("My fit")],
                ]
@@ -407,6 +348,8 @@ def layout(col,sel_func=[]):
 
 
     Fit_controler = FG.layout(sel_func)
+
+    finfo = sg.Frame("Fitting Info", border_width=0, layout = [[sg.MLine(default_text="", size=(30, 10), key="info", disabled=True)]])
 
 
 
@@ -443,8 +386,8 @@ def layout(col,sel_func=[]):
                 right_click_menu=["", ["Select all", "My fit"]],
                 background_color='#aaaaaa',
                 alternating_row_color='#888888',
-                display_row_numbers = True), sg.Button("test2"), sg.Button("Column Setting")],
-            [sg.Text('_' * 120)],
+                display_row_numbers = True), finfo, sg.Button("test2"), sg.Button("Column Setting")],
+            [sg.HorizontalSeparator()],
             [
             sg.Frame("", buttons, key="buttons", border_width=1,),
             sg.Frame("Plot menu", sel_xyz, element_justification="center"),
@@ -534,7 +477,6 @@ while True:
         x_sel = values["x"][0]
         y_sel = values["y"][0]
         ffn=values["func_list"][0] #fitting function name
-        data_info=[ffn+"_xdata",ffn+"_ydata",ffn+"_Data_type",ffn+"_fit_range_min",ffn+"_fit_range_max"]
         fr_m  = float(values["rep_frange_min"])
         fr_M  = float(values["rep_frange_max"])
         res = []
@@ -555,9 +497,9 @@ while True:
 
             _df = _df.append(latest_df(T_oya).query("f_path == @sel_table[0]"))
         else:#when for-loop finishes without any fitting error
-            res = pd.DataFrame(res, columns=["f_path"]+FG.func.columns+data_info+FG.func.columns_init).sort_values("f_path").drop("f_path", axis=1)
+            res = pd.DataFrame(res, columns=["f_path"]+FG.func.columns+FG.func.columns_data+FG.func.columns_init).sort_values("f_path").drop("f_path", axis=1)
             _df = _df.sort_values("f_path").reset_index(drop=True)
-            _df[FG.func.columns+data_info+FG.func.columns_init] = res
+            _df[FG.func.columns+FG.func.columns_data+FG.func.columns_init] = res
             _df["upd_num"] = upd_num
             _df = _df.replace({None:np.nan})#fitがうまく行かなかったら欠損値にしておく
             T_oya = T_oya.append(_df)
@@ -622,6 +564,7 @@ while True:
                 window["Plot"].update(disabled=False)
                 ffn4c=values["func_list"][0] #fitting function name
                 window["Check fit"].update(disabled=True)
+                ref_fit_info()
 
                 if ffn4c+"_xdata" in T_oya.columns:
                     df4check=latest_df(T_oya)
@@ -725,10 +668,8 @@ while True:
             FG.func.VF_par_slider_move(values)
 
     elif event == 'Undo':
-        if fit_num > 0:
+        if upd_num >= 0:
             undo()
-        else:
-            sg.popup("There is no fitting result.")
 
     elif event == 'Delete':
         pl_select_show = False

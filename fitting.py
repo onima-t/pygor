@@ -31,6 +31,7 @@ class Fit:
         self.columns=self.Pnames + [i+"_stderr" for i in self.Pnames]
         self.columns_init=[i+"_init_val" for i in self.Pnames] + [i+"_fix" for i in self.Pnames] \
             + [i+"_bound_min" for i in self.Pnames] + [i+"_bound_max" for i in self.Pnames]
+        self.columns_data = [self.name+"_xdata",self.name+"_ydata",self.name+"_Data_type",self.name+"_fit_range_min",self.name+"_fit_range_max"]
         ax=None
         self.FLAG_AX_EXISTS=False
         self.FLAG_SHOW_FITTING_RESULT=False
@@ -97,8 +98,9 @@ class Fit:
         global pl_vline,pl_rect,fmin,fmax
         fmin,fmax = float(values["rep_frange_min"]),float(values["rep_frange_max"])
         plt_ymin,plt_ymax = ax.get_ylim()
-        pl_vline = ax.vlines([fmin,fmax],plt_ymin,plt_ymax,color="b",linewidth=1,alpha=0.2)
-        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,1000*plt_ymin), width=fmax-fmin, height =2000*(plt_ymax - plt_ymin), fc="b",fill=True,alpha=0.05))
+        plt_height = plt_ymax - plt_ymin
+        pl_vline = ax.vlines([fmin,fmax],plt_ymin-1000*plt_height,plt_ymax+1000*plt_height,color="b",linewidth=1,alpha=0.2)
+        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,1000*plt_ymin), width=fmax-fmin, height =2000*plt_height, fc="b",fill=True,alpha=0.05))
 
     def VF_init(self,axes,xd,yd,values):
         global ymin,ymax,pl,ax,xdata,ydata

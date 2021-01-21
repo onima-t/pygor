@@ -490,8 +490,7 @@ while True:
             try:
                 res_i, init_i = FG.func.fit(data[x_sel].values ,data[new_yname].values ,values)
             except ValueError as e:
-                print(e)
-                sg.PopupError("Fitting Error!")
+                sg.PopupError("Fitting Error!\n"+e)
                 break
             res.append([sel_table[0]] + res_i + [x_sel,y_sel,values["data_mode"],fr_m,fr_M] +init_i)
 

@@ -21,7 +21,7 @@ class Fit:
         self.name = name#表示名
         self.Pnames=[]#names of the parameters ["p0", "p1", ...]
         self.init_params={}#fittingの初期条件["p0":p0, p1":p1, ...]
-        self.slider_params={}#sliderの最大最小["p0":[p0min,p0max], p1":[p1min,p1max], ...]
+        self.slider_params={}#sliderの最大最小の初期値["p0":[p0min,p0max], p1":[p1min,p1max], ...]
         self.vary = {}#the parameter is variable or bounded ["p0":True, "p1":False, ...]
         for i in par_info:
             self.Pnames.append(i[0])
@@ -258,7 +258,7 @@ class Fit_GUI:
 
         return [
             [
-                sg.Listbox(values=self.func_list, default_values=self.func_list[0], size=(6,6), key="func_list",
+                sg.Listbox(values=self.func_list, default_values=self.func_list[0], size=(10,6), key="func_list",
                     select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True),
                 sg.Frame("", element_justification="left", border_width=0, layout=[
                         [sg.Frame("", controler, element_justification="left", border_width=0)],
@@ -336,6 +336,7 @@ class Fit_GUI:
                 new_max=self.par_bounds[event]
                 old_min=float(window[sep[0]+"_Min"].get())
                 if new_max<old_min:
+                    self.par_bounds[sep[0]+"_Min"]=new_max
                     window[sep[0]+"_Min"].update(value=new_max)
                     window[sep[0]+"_slider"].update(value=slider_val)
                 else:
@@ -348,6 +349,7 @@ class Fit_GUI:
                 new_min=self.par_bounds[event]
                 old_max=float(window[sep[0]+"_Max"].get())
                 if new_min>old_max:
+                    self.par_bounds[sep[0]+"_Max"]=new_min
                     window[sep[0]+"_Max"].update(value=new_min)
                     window[sep[0]+"_slider"].update(value=slider_val)
                 else:
@@ -389,15 +391,15 @@ class Fit_GUI:
 """
 #template for setting
 
-Fset=[
-    "func" :
-    "name" :
+Fset={
+    "func" : function,
+    "name" : func_name,
     "par_info" : [
         ["p0", p0_init, p0_min, p0_max],
         ["p1", p1_init, p1_min, p1_max],
         ...
     ]
-]
+}
 
 [[注意]]パラメータ名には _ を使わないこと
 
@@ -414,15 +416,6 @@ def dynes(x, delta, gamma, amp=1, offset=0):
         A.real = x
         A.imag = -gamma
         return amp * np.abs(np.real(A / (A**2 - delta**2)**0.5)) + offset
-
-def sqrt(x, p0, p1, offset):
-    return np.sqrt(p0+p1*x) + offset
-
-def poly(x,p0,p1):
-    return p0 + p1*x
-
-
-
 dynes_set={
     "func" : dynes,
     "name" : "Dynes",
@@ -434,6 +427,8 @@ dynes_set={
     ]
 }
 
+def sqrt(x, p0, p1, offset):
+    return np.sqrt(p0+p1*x) + offset
 sqrt_set = {
     "func" : sqrt,
     "name" : "Sqrt",
@@ -444,13 +439,69 @@ sqrt_set = {
     ]
 }
 
+def poly(x,p0,p1):
+    return p0 + p1*x
 poly_set = {
     "func" : poly,
-    "name" : "poly",
+    "name" : "Linear",
     "par_info" : [
         ["p0", 0, -1, 1],
         ["p1", 1, -5, 5],
     ]
 }
 
-FIT_FUNCS=[Fit(**poly_set),Fit(**sqrt_set),Fit(**dynes_set)]
+def gaussian(x,mean,sigma,g_amp):
+    if sigma == 0:
+        return 0
+    else:
+        return amp*np.exp(-np.square(x-mean)/(2*np.square(sigma)))
+gaussian_set = {
+    "func" : gaussian,
+    "name" : "Gauss",
+    "par_info" : [
+        ["mean", 0, -1, 1],
+        ["sigma", 1, 0.1, 10],
+        ["g_amp", 1, 0.1, 10]
+    ]
+}
+
+def norm_dist(x,mean,sigma):
+    if sigma == 0:
+        return 0
+    else:
+        amplitude = 1/(np.sqrt(2*np.pi*np.square(sigma)))
+        return amplitude*np.exp(-np.square(x-mean)/(2*np.square(sigma)))
+norm_dist_set = {
+    "func" : norm_dist,
+    "name" : "Norm_dist",
+    "par_info" : [
+        ["mean", 0, -1, 1],
+        ["sigma", 1, 0.1, 10],
+    ]
+}
+
+def lorentzian(x,x0,d,l_amp):
+    if d == 0:
+        return 0
+    else:
+        return amp*np.square(d)/(np.square(x-x0) + np.square(d))
+lorentzian_set = {
+    "func" : lorentzian,
+    "name" : "Lorentzian",
+    "par_info" : [
+        ["x0", 0, -1, 1],
+        ["d", 1, 0.1, 10],
+        ["l_amp", 1, 0.1, 10]
+    ]
+}
+
+
+
+FIT_FUNCS=[
+Fit(**poly_set),
+Fit(**sqrt_set),
+Fit(**gaussian_set),
+Fit(**norm_dist_set),
+Fit(**lorentzian_set),
+Fit(**dynes_set)
+]

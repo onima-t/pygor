@@ -109,22 +109,21 @@ def col_cnt(df_latest, Dset, visible_column):
 
 
     def col_controler(on_col, off_col, stats=[]):
-        appearence = sg.Frame("",layout=
-            [
+        appearence = sg.Frame("",layout=[
                 [
-                    sg.Listbox(apc.obj_col,key="appearence_obj", size=(15,8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED),
-                    sg.Listbox(apc.num_col,key="appearence_num", size=(15,8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED),
+                    sg.Frame("",element_justification="left",border_width=0,layout=[
+                        [sg.Text("String")],
+                        [sg.Listbox(apc.obj_col,key="appearence_obj", size=(15,8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]
+                    ]),
+                    sg.Frame("",element_justification="left",border_width=0,layout=[
+                        [sg.Text("Number")],
+                        [sg.Listbox(apc.num_col,key="appearence_num", size=(15,8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]
+                    ]),
                     sg.Frame("", layout=[
-                            [
-                                sg.Frame("", layout=[
-                                        [sg.Radio("Deci", key = "rep", group_id="rep", default=True),sg.Spin(values=deci_examples, size=(8,1), key="style_deci")],
-                                        [sg.Radio("Expo", key = "rep_e", group_id="rep", default=False),sg.Spin(values=expo_examples, size=(8,1), key="style_expo")],
-                                        [sg.Button("Apply")]
-                                    ]
-                                )
-                            ]
-                        ]
-                    )
+                            [sg.Radio("Deci", key = "rep", group_id="rep", default=True),sg.Spin(values=deci_examples, size=(8,1), key="style_deci")],
+                            [sg.Radio("Expo", key = "rep_e", group_id="rep", default=False),sg.Spin(values=expo_examples, size=(8,1), key="style_expo")],
+                            [sg.Button("Apply")]
+                    ])
                 ]
             ]
         )
@@ -133,20 +132,31 @@ def col_cnt(df_latest, Dset, visible_column):
                 appearence, sg.Table(apc.df_show.values.tolist(),headings=on_col)
             ],
             [
-                sg.Frame("", element_justification="right",
+                sg.Frame("", element_justification="left",
                          layout=[
-                             [sg.OptionMenu(["hoge","huga"])],
-                             [sg.Listbox(col_set,key="data1",size=(8,5), enable_events=True, select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
+                            [sg.Text("Data")],
+                            [sg.Listbox(col_set,key="data1",size=(8,5), enable_events=True, select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
                          ]),
-                sg.Frame("", element_justification="right",
+                sg.Frame("", element_justification="left",
                          layout=[
-                             [sg.Listbox(stats, key="stats" ,size=(8,5), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
-                             [sg.Combo(("a", "b", "hoge"), visible=False, key="col_data2")],
-                             [sg.Button("Add>>")]
+                            [sg.Text("Stats")],
+                            [sg.Listbox(stats, key="stats" ,size=(8,5), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
+                            [sg.Combo(("a", "b", "hoge"), visible=False, key="col_data2")],
+                            [sg.Button("Add>>")]
                          ]),
-                sg.Frame("", [[sg.Listbox(values=on_col, key="on_col",size=(20, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]]),
-                sg.Frame("",[[sg.Button("<-Add")], [sg.Button("Remove->")], [sg.Button("Rename")]]),
-                sg.Frame("", [[sg.Listbox(values=off_col, key="off_col", size=(20, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]])
+                sg.Frame("",element_justification="left", layout=[
+                    [sg.Text("Visible columns")],
+                    [sg.Listbox(values=on_col, key="on_col",size=(20, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]
+                ]),
+                sg.Frame("",element_justification="center", layout=[
+                    [sg.Button("<-Add")],
+                    [sg.Button("Remove->")],
+                    [sg.Button("Rename",disabled=True)]
+                ]),
+                sg.Frame("",element_justification="left" ,layout=[
+                    [sg.Text("Invisible columns")],
+                    [sg.Listbox(values=off_col, key="off_col", size=(20, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]
+                ])
             ],
             [
             sg.Button("Cancel"),sg.Button("OK")

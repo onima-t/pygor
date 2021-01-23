@@ -11,7 +11,7 @@ import picture
 import random
 import add_column as ac
 import fitting as fg
-import show_data0 as sd
+import cnt_data as cd
 
 
 
@@ -320,15 +320,15 @@ def layout(col,sel_func=[]):
             key="File")
     ]
 
-    S = (8, 1)
+    S = (12, 1)
 
 
-    buttons = [[sg.Button("Visual fit", size=S, disabled=True)],
-               [sg.Button("Multi fit", size=S)],
-               [sg.Button("Check fit", size=S, disabled=True)],
-               [sg.CBox("Error?", key="de_c", default=True)]
-               #[sg.Button("My fit")],
-               ]
+    buttons = [
+        [sg.Button("Column Setting", size=S)],
+        [sg.Button("Check fit", size=S, disabled=True)],
+        [sg.Button("Modify data",key="modify",size=S, disabled=True)],
+        [sg.Button("test2")]
+    ]
 
     def sel(axis):
         return sg.Frame("", border_width=0, element_justification="center", pad=(0,10), layout=[
@@ -336,7 +336,7 @@ def layout(col,sel_func=[]):
             [sg.Listbox([], size=(6, 6), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True, default_values="", key=axis)]
         ])
 
-    sel_xyz = [
+    data_sel = [
         [
         sel("x"),sel("y"),sel("z"),sg.CBox("y_offset?",enable_events=True)
         ],
@@ -346,6 +346,12 @@ def layout(col,sel_func=[]):
         sg.Button("Plot",disabled=True)
         ],
     ]
+
+    plot_menu = sg.Frame("Plot menu",layout=[
+        [
+            sel("_z")
+        ],
+    ])
 
 
     Fit_controler = FG.layout(sel_func)
@@ -371,30 +377,33 @@ def layout(col,sel_func=[]):
                 sg.Input("", key="names", enable_events=True, visible=False), sg.Button("test")
             ],
             # Browse,
-            [sg.Table(
-                key='-TABLE-',
-                values=[],
-                headings=col,
-                visible_column_map=vm,
-                col_widths=[23, 23, 5],
-                # row_colors=[(0, "red", "white"), (4, "white", "#aaaaff")],
-                justification='right',
-                max_col_width=50,
-                def_col_width=8,
-                auto_size_columns=False,
-                enable_events=True,
-                select_mode=sg.TABLE_SELECT_MODE_EXTENDED,
-                right_click_menu=["", ["Select all", "My fit"]],
-                background_color='#aaaaaa',
-                alternating_row_color='#888888',
-                display_row_numbers = True), finfo, sg.Button("test2"), sg.Button("Column Setting")],
+            [
+                sg.Frame("", buttons, key="buttons", border_width=1,),
+                sg.Table(
+                    key='-TABLE-',
+                    values=[],
+                    headings=col,
+                    visible_column_map=vm,
+                    col_widths=[23, 23, 5],
+                    # row_colors=[(0, "red", "white"), (4, "white", "#aaaaff")],
+                    justification='right',
+                    max_col_width=50,
+                    def_col_width=8,
+                    auto_size_columns=False,
+                    enable_events=True,
+                    select_mode=sg.TABLE_SELECT_MODE_EXTENDED,
+                    right_click_menu=["", ["Select all", "My fit"]],
+                    background_color='#aaaaaa',
+                    alternating_row_color='#888888',
+                    display_row_numbers = True), finfo
+            ],
             [sg.HorizontalSeparator()],
             [
-            sg.Frame("", buttons, key="buttons", border_width=1,),
-            sg.Frame("Plot menu", sel_xyz, element_justification="center"),
+                sg.Frame("Data menu", data_sel, element_justification="center"),
+                plot_menu
             ],
             [
-            sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
+                sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
             ]
         ]
 
@@ -469,10 +478,16 @@ while True:
                    i for i in path_list(values["folder"], fe=values["fe"])]
             get_data(new)
 
-    elif event == "test":
-        sd.Data_controler(latest_df(T_oya))
+    elif event == "modify":
+        selected_data = window["-TABLE-"].get()[values["-TABLE-"][0]][0]
+        new, methods, flag_apply = cd.Data_controler(Dset[selected_data][1])
+        if flag_apply:
+            for k in Dset.keys():
+                Dset[k][1] = cd.apply_methods(Dset[k][1],methods)
+        else:
+            Dset[selected_data][1] = new
 
-    elif event == "Multi fit":
+    elif event == "Fit":
         x_sel = values["x"][0]
         y_sel = values["y"][0]
         ffn=values["func_list"][0] #fitting function name
@@ -555,6 +570,7 @@ while True:
             window["Visual fit"].update(disabled=True)
             window["Plot"].update(disabled=True)
             window["Check fit"].update(disabled=True)
+            window["modify"].update(disabled=True)
         else:
             ref_data_col()
             if len(values["-TABLE-"]) == 1:
@@ -562,6 +578,7 @@ while True:
                 window["Plot"].update(disabled=False)
                 ffn4c=values["func_list"][0] #fitting function name
                 window["Check fit"].update(disabled=True)
+                window["modify"].update(disabled=False)
                 ref_fit_info()
 
                 if ffn4c+"_xdata" in T_oya.columns:
@@ -574,6 +591,7 @@ while True:
                 window["Visual fit"].update(disabled=True)
                 window["Plot"].update(disabled=False)
                 window["Check fit"].update(disabled=True)
+                window["modify"].update(disabled=True)
 
     elif event in ["sort", "sort_order"]:
         table_update_order(values["sort"], sort_order=values["sort_order"])
@@ -671,83 +689,3 @@ while True:
 
     elif event in FG.func.Pnames:
         FG.init_par_overwritten(window,values,event)
-
-    elif event == 'Delete':
-        pl_select_show = False
-        Diff_vis = np.delete(Diff_vis, Selected_points)
-        V_vis = np.delete(V_vis, Selected_points)
-        pl_d.remove()
-        pl_select.remove()
-        pl_d = ax.scatter(V_vis, Diff_vis, c="#5fd989", edgecolors="black")
-        Selected_points = []
-        plt.pause(0.1)
-        window["Delete"].update(disabled=True)
-
-
-    elif event == 'Fit':
-        fit_num += 1
-        try:
-            V_f, Diff_f = prepare_fit(V_vis, Diff_vis)
-        except NameError as e:
-            print(e)
-            continue
-        if pl_p_show == True:
-            pl_p[0].remove()
-            pl_p_show = False
-
-        if pl_f_show == True:
-            pl_f_in[0].remove()
-            pl_f_show = False
-            if pl_f_lr_show == True:
-                pl_f_r[0].remove()
-                pl_f_l[0].remove()
-                pl_f_lr_show = False
-
-        init_p = get_params()
-        b_m, b_M = get_bounds()
-
-        try:
-            popt, pcov = curve_fit(
-                dynes, V_f, Diff_f, p0=init_p, bounds=(b_m, b_M))
-        except (RuntimeError, ValueError) as e:
-            print(e)
-        else:
-            print(popt)
-            fmax, fmin = np.max(V_f), np.min(V_f)
-
-            pl_f_in = pl_dynes(ax, fmin, fmax, popt, color="r")
-            pl_f_show = True
-            if f_range_c == True:
-                pl_f_l = pl_dynes(ax, np.min(V_vis), fmin,
-                                  popt, color="y", LS="-")
-                pl_f_r = pl_dynes(ax, fmax, np.max(V_vis),
-                                  popt, color="y", LS="-")
-                pl_f_lr_show = True
-            plt.pause(0.1)
-
-            f_res = [fit_num] + table[d_num] + \
-                popt.tolist() + np.diag(pcov).tolist()
-            f_cnd.append([fit_num] + table[d_num][:1] + [np.max(V_f), np.min(V_f)] +
-                         init_p + b_m + b_M)
-            df = df.append(pd.Series(f_res, index=df.columns),
-                           ignore_index=True)
-
-            # visual fit時のfilenameが現在何列目にあるか？
-            a = np.where(
-                np.array(window["-TABLE-"].get())[:, 0] == vf_name)[0][0]
-            table_update(values["sort"], sel=[a],
-                         sort_order=values["sort_order"])
-
-"""
-    elif event == "My fit":
-        fit_num+=1
-        G=get_params()
-        AAA=np.array(window["-TABLE-"].get())
-        a=pd.DataFrame(AAA[values["-TABLE-"],:3],columns=df.columns[1:4])#Tまでget
-        a["fit num"]=fit_num
-        a=a.assign(Delta=G[0],Gamma=G[1],Coef=G[2],Offset=G[3])
-        a[df.columns[-6:]]=0
-        a=a.astype({"points":float, "T":float})
-        df = df.append(a,ignore_index=True)
-        table_update(values["sort"],sel=values["-TABLE-"],sort_order=values["sort_order"])
-"""

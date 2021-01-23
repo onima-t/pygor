@@ -99,8 +99,8 @@ class Fit:
         fmin,fmax = float(values["rep_frange_min"]),float(values["rep_frange_max"])
         plt_ymin,plt_ymax = ax.get_ylim()
         plt_height = plt_ymax - plt_ymin
-        pl_vline = ax.vlines([fmin,fmax],plt_ymin-1000*plt_height,plt_ymax+1000*plt_height,color="b",linewidth=1,alpha=0.2)
-        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,1000*plt_ymin), width=fmax-fmin, height =2000*plt_height, fc="b",fill=True,alpha=0.05))
+        pl_vline = ax.vlines([fmin,fmax],plt_ymin-1000*plt_height,plt_ymax+1000*plt_height,color="b",linewidth=1,alpha=0.3)
+        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,1000*plt_ymin), width=fmax-fmin, height =2000*plt_height, fc="b",fill=True,alpha=0.25))
 
     def VF_init(self,axes,xd,yd,values):
         global ymin,ymax,pl,ax,xdata,ydata
@@ -150,7 +150,7 @@ class Fit:
             self.plot_frange(values)
             plt.pause(PLOT_INTERVAL)
 
-    def VF_frange_sflider_move_(self,values):
+    def VF_frange_slider_move_(self,values):
         if self.FLAG_AX_EXISTS:
             pl_vline.remove()
             pl_rect.remove()
@@ -251,9 +251,13 @@ class Fit_GUI:
             ]
         ]
 
+        S = (8, 1)
         output=[
-            [sg.CBox("Active fit", key="Active", enable_events=True)],
-            [sg.Button("Fit")]
+            [
+                sg.Button("Visualize", key="Visual fit", size=S, disabled=True),
+                sg.CBox("Active fit", key="Active", enable_events=True)
+            ],
+            [sg.Button("Fit",size=S)]
         ]
 
         return [
@@ -264,7 +268,7 @@ class Fit_GUI:
                         [sg.Frame("", controler, element_justification="left", border_width=0)],
                         [
                             sg.Frame("Fit range", set_f_range, element_justification="left"),
-                            sg.Frame("", output, element_justification="right",border_width=0)
+                            sg.Frame("", output, element_justification="left",border_width=0)
                         ]
                     ]
                 )
@@ -451,18 +455,18 @@ poly_set = {
     ]
 }
 
-def gaussian(x,mean,sigma,g_amp):
+def gaussian(x,mean,sigma,gamp):
     if sigma == 0:
         return 0
     else:
-        return amp*np.exp(-np.square(x-mean)/(2*np.square(sigma)))
+        return gamp*np.exp(-np.square(x-mean)/(2*np.square(sigma)))
 gaussian_set = {
     "func" : gaussian,
     "name" : "Gauss",
     "par_info" : [
         ["mean", 0, -1, 1],
         ["sigma", 1, 0.1, 10],
-        ["g_amp", 1, 0.1, 10]
+        ["gamp", 1, 0.1, 10]
     ]
 }
 

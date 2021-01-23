@@ -388,10 +388,11 @@ class Fit_GUI:
         self.func.init_params[pname] = input
         window[pname+"_slider"].update(value=slider_val)
 
-"""
-#template for setting
 
-Fset={
+"""
+#template for fitting function settings
+
+hoge_set={
     "func" : function,
     "name" : func_name,
     "par_info" : [
@@ -403,7 +404,7 @@ Fset={
 
 [[注意]]パラメータ名には _ を使わないこと
 
-関数の定義では変数名に必ず x を使うこと（lmfit）のフィットの際に用いるため
+関数の定義では変数名に必ず x を使うこと(lmfitのフィットの際に用いるため)
 →func.__code__.co_varnames で取得するようにする？
 """
 

@@ -11,6 +11,7 @@ import picture
 import random
 import add_column as ac
 import fitting as fg
+import show_data0 as sd
 
 
 
@@ -469,9 +470,7 @@ while True:
             get_data(new)
 
     elif event == "test":
-        print(values["names"])
-        print(values["x"])
-        window["frange_max"].update(value=0.5)
+        sd.Data_controler(latest_df(T_oya))
 
     elif event == "Multi fit":
         x_sel = values["x"][0]

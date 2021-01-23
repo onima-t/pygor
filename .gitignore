@@ -1,6 +1,7 @@
 #My files
 _main_plot_.py
 memo.txt
+test*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

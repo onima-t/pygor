@@ -313,7 +313,7 @@ def layout(col,sel_func=[]):
     Fit_range_button = sg.Button('Off', size=(
         3, 1), button_color='white on red', key='-B-')
 
-    menu_def = [['&File', ["&Save as csv", "Save as pkl", "Undo", 'E&xit']]]
+    menu_def = [['&File', ["&Save as csv", "Save as pkl", "Load pkl" ,"Undo", 'E&xit']]]
 
     Browse = [  # sg.Text('Your Folder', size=(15, 1), justification='right'),
         sg.InputText('', key="path", enable_events=True), sg.FolderBrowse(
@@ -693,9 +693,25 @@ while True:
     elif event == "Save as csv":
         table_df=pd.DataFrame(window["-TABLE-"].get(),columns=Vcol).drop("f_path", axis=1)
         name=filedialog.asksaveasfilename(title = "Save as csv",filetypes =  [("csv file","*.csv")])
-        table_df.to_csv(name,index=False)
+        if name !="":
+            table_df.to_csv(name,index=False)
 
     elif event == "Save as pkl":
-        None
+        name=filedialog.asksaveasfilename(title = "Save as pkl",filetypes =  [("pkl file","*.pkl")])
+        if name != "":
+            with open(name, "wb") as f:
+                pkl.dump({
+                "T_oya" : T_oya,
+                "apc" : apc,
+                "Vcol":Vcol
+                },f)
+
+    elif event == "Load pkl":
+        name = filedialog.askopenfilename(title = "Load pkl")
+        print(name)
+        if name != "":
+            with open (name,"rb") as f:
+                loaded = pkl.load(f)
+        print(loaded["Vcol"])
 
 [['&File', ["&Save as csv", "Save as pkl", "Undo", 'E&xit']]]

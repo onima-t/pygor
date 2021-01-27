@@ -702,6 +702,7 @@ while True:
             with open(name, "wb") as f:
                 pkl.dump({
                 "T_oya" : T_oya,
+                "Dset" : Dset,
                 "apc" : apc,
                 "Vcol":Vcol
                 },f)
@@ -712,6 +713,13 @@ while True:
         if name != "":
             with open (name,"rb") as f:
                 loaded = pkl.load(f)
-        print(loaded["Vcol"])
+            print(loaded["Vcol"])
+            T_oya = loaded["T_oya"]
+            Dset = loaded["Dset"]
+            apc = loaded["apc"]
+            Vcol = loaded["Vcol"]
+            upd_num = T_oya["upd_num"].max() + 1
+            table_update_contents(values["sort"])
+
 
 [['&File', ["&Save as csv", "Save as pkl", "Undo", 'E&xit']]]

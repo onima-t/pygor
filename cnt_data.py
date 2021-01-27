@@ -10,7 +10,6 @@ import seaborn as sns
 
 sns.set()
 sns.set_style("whitegrid")
-#改善点：tableだけ別windowで出せば,table_updateで一々更新のためのコードを使わなくてよさそう
 
 APP_NAME="Data utilities"
 
@@ -40,24 +39,21 @@ DATA_CNT={
 "diff" : differentiate
 }
 
-d=pd.DataFrame([[1,2,4],[6,8,10],[49,294,6],[1,5,84]],columns=["a","b","c"])
-d1=d.copy()
-d=d.append(d1)
-df=d.append(d).reset_index(drop=True)
 
-
-class Data_controler:
-    def __init__(self):
-        None
 
 
 def apply_methods(df,l):
-    for d in l:
-        d_set=[]
-        for i in d["col"]:
-            d_set.append(df[i])
-        df[d["name"]]=d["method"](d_set)
-    return df
+    _df=df.copy()
+    try:
+        for d in l:
+            d_set=[]
+            for i in d["col"]:
+                d_set.append(_df[i])
+            _df[d["name"]]=d["method"](d_set)
+    except NameError as e:
+        print(e)
+        return df
+    return _df
 
 
 def Data_controler(df):
@@ -71,7 +67,7 @@ def Data_controler(df):
 
     def GUI_layout(snap_df):
         global current_df,dn_idx
-        current_df = snap_df.loc[SNAP,:].reset_index()
+        current_df = snap_df.loc[SNAP,:].reset_index().dropna(how="all",axis=1)
         col = current_df.columns.tolist()
         dn_idx=col.index("data_no")
         vm=[False if i in ["snap_no","data_no"] else True for i in col]
@@ -132,10 +128,10 @@ def Data_controler(df):
                     auto_size_columns=False,
                     enable_events=True,
                     select_mode=sg.TABLE_SELECT_MODE_EXTENDED,
-                    right_click_menu=["", ["Select all", "My fit"]],
                     background_color='#aaaaaa',
                     alternating_row_color='#888888',),
                     sg.Button("Delete point", key="del" ,disabled=True),
+                    sg.Button("Undo"),
             ],
             [sg.Button("OK"),sg.Button("Apply all"),sg.Button("Cancel")]
         ]
@@ -151,7 +147,7 @@ def Data_controler(df):
 
     APPLIED_METHODS_RECORD=[]
 
-    window = sg.Window(APP_NAME,layout=GUI_layout(SNAPSHOTS),finalize=True)
+    window = sg.Window(APP_NAME,location=(0,0),layout=GUI_layout(SNAPSHOTS),finalize=True)
     print(current_df)
     print(dn_idx)
     while True:
@@ -212,4 +208,11 @@ def Data_controler(df):
             save_snapshot(current_df)
 
             window.close()
-            window = sg.Window(APP_NAME,layout=GUI_layout(SNAPSHOTS),finalize=True)
+            window = sg.Window(APP_NAME,location=(0,0),layout=GUI_layout(SNAPSHOTS),finalize=True)
+
+        elif event == "Undo":
+            if SNAP>0:
+                SNAP-=1
+                SNAPSHOTS = SNAPSHOTS.loc[slice(SNAP),:]
+                window.close()
+                window = sg.Window(APP_NAME,location=(0,0),layout=GUI_layout(SNAPSHOTS),finalize=True)

@@ -12,6 +12,7 @@ import random
 import add_column as ac
 import fitting as fg
 import cnt_data as cd
+import pickle as pkl
 
 
 
@@ -224,7 +225,6 @@ def fg_update():
         FG.frange_update(window, STACK_FROM_TABLE)
     except NameError as e:
         FG.frange_update(window)
-    #window["Visual fit"].update(disabled=True)
 
 TABLE_SELECTED=[]
 def ref_data_col():
@@ -313,7 +313,7 @@ def layout(col,sel_func=[]):
     Fit_range_button = sg.Button('Off', size=(
         3, 1), button_color='white on red', key='-B-')
 
-    menu_def = [['&File', ["&Save", "Undo", 'E&xit']]]
+    menu_def = [['&File', ["&Save as csv", "Save as pkl", "Undo", 'E&xit']]]
 
     Browse = [  # sg.Text('Your Folder', size=(15, 1), justification='right'),
         sg.InputText('', key="path", enable_events=True), sg.FolderBrowse(
@@ -689,3 +689,13 @@ while True:
 
     elif event in FG.func.Pnames:
         FG.init_par_overwritten(window,values,event)
+
+    elif event == "Save as csv":
+        table_df=pd.DataFrame(window["-TABLE-"].get(),columns=Vcol).drop("f_path", axis=1)
+        name=filedialog.asksaveasfilename(title = "Save as csv",filetypes =  [("csv file","*.csv")])
+        table_df.to_csv(name,index=False)
+
+    elif event == "Save as pkl":
+        None
+
+[['&File', ["&Save as csv", "Save as pkl", "Undo", 'E&xit']]]

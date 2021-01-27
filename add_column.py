@@ -6,7 +6,6 @@ import tkinter
 from tkinter import filedialog
 import collections
 
-#改善点：tableだけ別windowで出せば,table_updateで一々更新のためのコードを使わなくてよさそう
 
 app_name="Columns setting"
 deci_examples = ["1","1.2","1.23","1.234","1.2345"]
@@ -132,26 +131,33 @@ def col_cnt(df_latest, Dset, visible_column):
                 appearence, sg.Table(apc.df_show.values.tolist(),headings=on_col)
             ],
             [
-                sg.Frame("", element_justification="left",
-                         layout=[
-                            [sg.Text("Data")],
-                            [sg.Listbox(col_set,key="data1",size=(8,5), enable_events=True, select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
-                         ]),
-                sg.Frame("", element_justification="left",
-                         layout=[
-                            [sg.Text("Stats")],
-                            [sg.Listbox(stats, key="stats" ,size=(8,5), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
-                            [sg.Combo(("a", "b", "hoge"), visible=False, key="col_data2")],
-                            [sg.Button("Add>>")]
-                         ]),
+                sg.Frame("",element_justification="right", layout=[
+                    [
+                        sg.Frame("",border_width=0 ,element_justification="left",
+                             layout=[
+                                [sg.Text("Data")],
+                                [sg.Listbox(col_set,key="data1",size=(8,5), enable_events=True, select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
+                        ]),
+                        sg.Frame("",border_width=0 ,element_justification="left",
+                                 layout=[
+                                    [sg.Text("Stats")],
+                                    [sg.Listbox(stats, key="stats" ,size=(8,5), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
+                                    [sg.Combo(("a", "b", "hoge"), visible=False, key="col_data2")]
+                         ])
+                    ],
+                    [
+                        sg.Button("Add>>",pad=(20,5))
+                    ]
+                ]),
                 sg.Frame("",element_justification="left", layout=[
                     [sg.Text("Visible columns")],
-                    [sg.Listbox(values=on_col, key="on_col",size=(20, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)]
+                    [sg.Listbox(values=on_col, key="on_col",size=(20, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED, enable_events=True)]
                 ]),
                 sg.Frame("",element_justification="center", layout=[
                     [sg.Button("<-Add")],
                     [sg.Button("Remove->")],
-                    [sg.Button("Rename",disabled=True)]
+                    [sg.Button("Rename",disabled=True)],
+                    [sg.Button("↑",key="up", disabled=True),sg.Button("↓",key="down", disabled=True)]
                 ]),
                 sg.Frame("",element_justification="left" ,layout=[
                     [sg.Text("Invisible columns")],
@@ -214,11 +220,45 @@ def col_cnt(df_latest, Dset, visible_column):
             apc.renew_data(df_latest,on_col)
             window = preview_update(window)
 
-
         elif event == "Remove->":
             for i in values["on_col"]:
                 on_col.remove(i)
             off_col = off_col + values["on_col"]
+            apc.renew_data(df_latest,on_col)
+            window = preview_update(window)
+
+        elif event == "on_col":
+            if len(values["on_col"])==1:
+                window["up"].update(disabled=False)
+                window["down"].update(disabled=False)
+            else:
+                window["up"].update(disabled=True)
+                window["down"].update(disabled=True)
+
+        elif event == "up":
+            idx = on_col.index(values["on_col"][0])
+            if len(on_col)>1:
+                if idx==0:
+                    new_on_col = on_col
+                else:
+                    new_on_col = on_col[:idx-1] + [on_col[idx],on_col[idx-1]] + on_col[idx+1:]
+                    window["on_col"].update(set_to_index=idx-1)
+
+            on_col = new_on_col
+            apc.renew_data(df_latest,on_col)
+            window = preview_update(window)
+
+        elif event == "down":
+            idx = on_col.index(values["on_col"][0])
+            if len(on_col)>1:
+                if len(on_col)-1==idx:
+                    new_on_col = on_col
+                else:
+                    new_on_col = on_col[0:idx] + [on_col[idx+1],on_col[idx]] + on_col[idx+2:]
+                    window["on_col"].update(set_to_index=idx+1)
+
+
+            on_col = new_on_col
             apc.renew_data(df_latest,on_col)
             window = preview_update(window)
 

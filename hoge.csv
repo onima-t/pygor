@@ -1,0 +1,7 @@
+filename,counts,p0,p1,p0_stderr,p1_stderr
+201214_1730_#21_13-17_6K_junction_stableI.txt,182,nan,nan,nan,nan
+201214_1852_#21_13-17_7p13K_junction_stableI.txt,132,nan,nan,nan,nan
+201214_2108_#21_13-17_7p65K_junction_stableI.txt,112,nan,nan,nan,nan
+201214_2308_#21_13-17_4K_junction_stableI.txt,212,0.00e+00,1.00e+00,0.00e+00,0.00e+00
+201214_2354_#21_13-17_3p5K_junction_stableI.txt,212,nan,nan,nan,nan
+201215_0255_#21_13-17_1p75K_junction_stableI.txt,206,nan,nan,nan,nan

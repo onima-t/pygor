@@ -136,6 +136,9 @@ def ref_fit_info():
     info = info[:-1]
     window["info"].update(value=info)
 
+def ref_table_col():
+    A=window["-TABLE-"].get()
+
 def check_bounds(name_c):
     name = name_c[:-2]
     if values[name_c] == True:
@@ -412,7 +415,8 @@ def layout(col,sel_func=[]):
             [
                 sg.Frame("Data menu", data_sel, element_justification="center"),
                 #plot_menu
-                finfo
+                finfo,
+                sg.Button("test")
             ],
             [
                 sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
@@ -666,6 +670,9 @@ while True:
 
         ax.set_ylabel(new_yname)
         plt.pause(0.1)
+
+    elif event =="test":
+        A=window["-TABLE-"].get()
 
     elif event == "func_list":
         fg_update()

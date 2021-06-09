@@ -80,6 +80,7 @@ def col_cnt(df_latest, Dset, visible_column):
         sel_data1 = window["data1"].get_indexes()
         sel_stats = window["stats"].get_indexes()
         sel_on = window["on_col"].get_indexes()
+        N = len(window["on_col"].get_list_values())
         sel_off = window["off_col"].get_indexes()
         sel_an = window["appearence_num"].get_indexes()
         sel_ao = window["appearence_obj"].get_indexes()
@@ -95,8 +96,12 @@ def col_cnt(df_latest, Dset, visible_column):
         new_window["stats"].update(set_to_index=sel_stats)
         new_window["on_col"].update(set_to_index=sel_on)
         new_window["off_col"].update(set_to_index=sel_off)
-        new_window["up"].update(disabled=False)
-        new_window["down"].update(disabled=False)
+        if sel_on in [(),(N,)]:
+            new_window["up"].update(disabled=True)
+            new_window["down"].update(disabled=True)
+        else:
+            new_window["up"].update(disabled=False)
+            new_window["down"].update(disabled=False)
         new_window["appearence_num"].update(set_to_index=sel_an)
         new_window["appearence_obj"].update(set_to_index=sel_ao)
         if radio_b:

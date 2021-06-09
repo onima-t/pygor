@@ -100,7 +100,7 @@ class Fit:
         plt_ymin,plt_ymax = ax.get_ylim()
         plt_height = plt_ymax - plt_ymin
         pl_vline = ax.vlines([fmin,fmax],plt_ymin-1000*plt_height,plt_ymax+1000*plt_height,color="b",linewidth=1,alpha=0.3)
-        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,1000*plt_ymin), width=fmax-fmin, height =2000*plt_height, fc="b",fill=True,alpha=0.25))
+        pl_rect = ax.add_patch(patches.Rectangle(xy=(fmin,plt_ymin-1000*plt_height), width=fmax-fmin, height =2000*plt_height, fc="b",fill=True,alpha=0.25))
 
     def VF_init(self,axes,xd,yd,values):
         global ymin,ymax,pl,ax,xdata,ydata

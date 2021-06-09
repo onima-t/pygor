@@ -95,6 +95,8 @@ def col_cnt(df_latest, Dset, visible_column):
         new_window["stats"].update(set_to_index=sel_stats)
         new_window["on_col"].update(set_to_index=sel_on)
         new_window["off_col"].update(set_to_index=sel_off)
+        new_window["up"].update(disabled=False)
+        new_window["down"].update(disabled=False)
         new_window["appearence_num"].update(set_to_index=sel_an)
         new_window["appearence_obj"].update(set_to_index=sel_ao)
         if radio_b:

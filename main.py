@@ -102,17 +102,22 @@ def ref_data_mode(df, xname, yname, mode=None):
     ["Raw data","1st diff","2nd diff","3rd diff","Integral"]
     x,y = df[xname].values,df[yname].values
     if M == "Raw data":
-        return data, yname
-    elif M == "1st diff":
-        y = n_diff(x,y,1)
-    elif M == "2nd diff":
-        y = n_diff(x,y,2)
-    elif M == "3rd diff":
-        y = n_diff(x,y,3)
-    elif M == "Integral":
-        return 0#工事中
-    new_yname = M + " " + yname
-    df[new_yname] = pd.Series(y)
+        new_yname = yname
+        #return data, yname
+    else:
+        if M == "1st diff":
+            y = n_diff(x,y,1)
+        elif M == "2nd diff":
+            y = n_diff(x,y,2)
+        elif M == "3rd diff":
+            y = n_diff(x,y,3)
+        elif M == "Integral":
+            return 0#工事中
+        new_yname = M + " " + yname
+    if values["y_offset_check"]:
+        df[new_yname] = pd.Series(y)*float(values["y_amp"]) + float(values["y_offset"])
+    else:
+        df[new_yname] = pd.Series(y)
     #print(y)
     return df,new_yname
 
@@ -229,13 +234,13 @@ def fg_update():
 TABLE_SELECTED=[]
 def ref_data_col():
     global STACK_FROM_TABLE, TABLE_SELECTED
-    if TABLE_SELECTED!=values["-TABLE-"]:
+    if True:#TABLE_SELECTED!=values["-TABLE-"]:   ファイル選択に問題があればこっちに戻して
         TABLE_SELECTED = values["-TABLE-"]
         l = []
         for i in values["-TABLE-"]:
             data = Dset[window["-TABLE-"].get()[i][0]][1]
             l.append(data)
-        STACK_FROM_TABLE = pd.concat(l, join="inner")
+        STACK_FROM_TABLE = pd.concat(l, join="inner")#選択されたファイルの共通のデータ名の列のみ抽出
         col = STACK_FROM_TABLE.columns.values.tolist()
 
         def upd(i):
@@ -336,9 +341,18 @@ def layout(col,sel_func=[]):
             [sg.Listbox([], size=(6, 6), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True, default_values="", key=axis)]
         ])
 
+
+
     data_sel = [
         [
-        sel("x"),sel("y"),sel("z"),sg.CBox("y_offset?",enable_events=True)
+        sel("x"),sel("y"),sel("z"),sg.Frame("",
+            [
+                [sg.CBox("y_offset?",key="y_offset_check",enable_events=True)],
+                [sg.Text("amp",size=(4,1)),sg.Input("1",key="y_amp",size=(6,1))],
+                [sg.Text("offset",size=(4,1)),sg.Input("0",key="y_off",size=(6,1),)]
+            ]
+            ,border_width=0
+        )
         ],
         [
         sg.OptionMenu(["Nomal", "Color", "3D"],key="plt_mode"),
@@ -486,6 +500,7 @@ while True:
                 Dset[k][1] = cd.apply_methods(Dset[k][1],methods)
         else:
             Dset[selected_data][1] = new
+        ref_data_col()
 
     elif event == "Fit":
         x_sel = values["x"][0]

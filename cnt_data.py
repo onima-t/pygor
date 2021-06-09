@@ -192,6 +192,8 @@ def Data_controler(df):
             ax = fig.add_subplot(111)
             ax.scatter(current_df[values["d0"][0]].values, current_df[values["d1"][0]].values, edgecolor="black", linewidth=0.5, alpha=0.5)
             ax.set_title(values["d0"][0] + " vs " + values["d1"][0])
+            ax.set_xlabel(values["d0"][0])
+            ax.set_ylabel(values["d1"][0])
             plt.show()
 
         elif event == "method":

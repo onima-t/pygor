@@ -115,7 +115,11 @@ def ref_data_mode(df, xname, yname, mode=None):
             return 0#工事中
         new_yname = M + " " + yname
     if values["y_offset_check"]:
-        df[new_yname] = pd.Series(y)*float(values["y_amp"]) + float(values["y_offset"])
+        try:
+            df[new_yname] = pd.Series(y)*float(values["y_amp"]) + float(values["y_offset"])
+        except ValueError as e:
+            print(e)
+            df[new_yname] = pd.Series(y)
     else:
         df[new_yname] = pd.Series(y)
     #print(y)
@@ -331,12 +335,11 @@ def layout(col,sel_func=[]):
     buttons = [
         [sg.Button("Column Setting", size=S)],
         [sg.Button("Check fit", size=S, disabled=True)],
-        [sg.Button("Modify data",key="modify",size=S, disabled=True)],
-        [sg.Button("test2")]
+        [sg.Button("Modify data",key="modify",size=S, disabled=True)]
     ]
 
-    def sel(axis):
-        return sg.Frame("", border_width=0, element_justification="center", pad=(0,10), layout=[
+    def sel(axis,visible=True):
+        return sg.Frame("",key=axis+"_frame",visible=visible, border_width=0, element_justification="center", pad=(0,10), layout=[
             [sg.Text(axis)],
             [sg.Listbox([], size=(6, 6), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True, default_values="", key=axis)]
         ])
@@ -345,32 +348,26 @@ def layout(col,sel_func=[]):
 
     data_sel = [
         [
-        sel("x"),sel("y"),sel("z"),sg.Frame("",
+        sel("x"),sel("y"),sel("z",False),sg.Frame("",
             [
                 [sg.CBox("y_offset?",key="y_offset_check",enable_events=True)],
                 [sg.Text("amp",size=(4,1)),sg.Input("1",key="y_amp",size=(6,1))],
-                [sg.Text("offset",size=(4,1)),sg.Input("0",key="y_off",size=(6,1),)]
+                [sg.Text("offset",size=(4,1)),sg.Input("0",key="y_offset",size=(6,1),)]
             ]
-            ,border_width=0
+            ,border_width=0,key="y_offset_frame"
         )
         ],
         [
-        sg.OptionMenu(["Nomal", "Color", "3D"],key="plt_mode"),
-        sg.OptionMenu(DATA_MODES,key="data_mode"),
+        sg.Combo(["Nomal", "Color", "3D"],default_value="Nomal",enable_events=True,key="plt_mode"),
+        sg.Combo(DATA_MODES,default_value=DATA_MODES[0],enable_events=True,key="data_mode"),
         sg.Button("Plot",disabled=True)
         ],
     ]
 
-    plot_menu = sg.Frame("Plot menu",layout=[
-        [
-            sel("_z")
-        ],
-    ])
-
 
     Fit_controler = FG.layout(sel_func)
 
-    finfo = sg.Frame("Fitting Info", border_width=0, layout = [[sg.MLine(default_text="", size=(30, 10), key="info", disabled=True)]])
+    finfo = sg.Frame("Fitting Info", border_width=0, layout = [[sg.MLine(default_text="", size=(50, 10), key="info", disabled=True)]])
 
 
 
@@ -388,7 +385,7 @@ def layout(col,sel_func=[]):
                 sg.Combo(Vcol, enable_events=True,
                       default_value="filename", key="sort"),
                 sg.CBox("Reverse order", key="sort_order", enable_events=True),
-                sg.Input("", key="names", enable_events=True, visible=False), sg.Button("test")
+                sg.Input("", key="names", enable_events=True, visible=False)
             ],
             # Browse,
             [
@@ -409,12 +406,13 @@ def layout(col,sel_func=[]):
                     right_click_menu=["", ["Select all", "My fit"]],
                     background_color='#aaaaaa',
                     alternating_row_color='#888888',
-                    display_row_numbers = True), finfo
+                    display_row_numbers = True)
             ],
             [sg.HorizontalSeparator()],
             [
                 sg.Frame("Data menu", data_sel, element_justification="center"),
-                plot_menu
+                #plot_menu
+                finfo
             ],
             [
                 sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
@@ -735,6 +733,13 @@ while True:
             Vcol = loaded["Vcol"]
             upd_num = T_oya["upd_num"].max() + 1
             table_update_contents(values["sort"])
+
+    elif event == "plt_mode":
+        if values["plt_mode"] in ["Color","3D"]:
+            window["z_frame"].update(visible=True)
+        else:
+            window["z_frame"].update(visible=False)
+
 
 
 [['&File', ["&Save as csv", "Save as pkl", "Undo", 'E&xit']]]

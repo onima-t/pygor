@@ -137,7 +137,8 @@ def ref_fit_info():
     window["info"].update(value=info)
 
 def ref_table_col():
-    A=window["-TABLE-"].get()
+    A = pd.DataFrame(window["-TABLE-"].get(),columns=Vcol)
+    return 0
 
 def check_bounds(name_c):
     name = name_c[:-2]
@@ -196,6 +197,9 @@ def interface_update():
     window["rep_frange_max"].update(value=values["rep_frange_max"])
     window["plt_mode"].update(value=values["plt_mode"])
     window["data_mode"].update(value=values["data_mode"])
+    window["y_amp"].update(value=values["y_amp"])
+    window["y_offset"].update(value=values["y_offset"])
+    window["y_offset_check"].update(value=values["y_offset_check"])
 
 
 def table_update_contents(idx_s, sel=None, sort_order=True):
@@ -265,16 +269,42 @@ def ref_data_col():
         upd("z")
         FG.frange_update(window, STACK_FROM_TABLE, values["frange_min"], values["frange_max"])
 
-
+def update_res_plt_menu():
+    B= latest_df(T_oya)
+    res_plt_data = []
+    for i in Vcol:
+        if B[i].dtype !="O":
+            res_plt_data.append(i)
+    window["res_x"].update(values=res_plt_data,set_to_index=0)
+    window["res_y"].update(values=res_plt_data,set_to_index=0)
+    window["res_error"].update(values=["None"]+res_plt_data,set_to_index=0)
 
 def get_data(paths):
-    global upd_num, T_oya, Dset, D
+    global upd_num, T_oya, Dset, D, added_stats
     Tadd = []
+    stats = []
+    stats_columns=[]
+    data_col_name_for_stats={}
+    for i in added_stats.keys():
+        for j in added_stats[i]:
+            stats_columns.append(i+"_"+j)
+
     for fp in paths:
         D = pd.read_csv(fp, sep=SEP_CHARACTOR, engine="python")
+        for i in D.columns.tolist():
+            data_col_name_for_stats[i]=[]
+        data_col_name_for_stats.update(added_stats)
+        added_stats=data_col_name_for_stats
+        stats_fp=[]
+        dsr = D.describe()
+        for i in added_stats.keys():
+            for j in added_stats[i]:
+                stats_fp.append(dsr.at[j,i])
+
         Dset[fp] = [fp.split("/")[-1], D]
-        Tadd.append([upd_num, fp, fp.split("/")[-1], len(D)])
-    _T = pd.DataFrame(Tadd, columns=["upd_num", "f_path", "filename", "counts"])
+        Tadd.append([upd_num, fp, fp.split("/")[-1], len(D)]+stats_fp)
+
+    _T = pd.DataFrame(Tadd, columns=["upd_num", "f_path", "filename", "counts"]+stats_columns)
     T_oya = T_oya.append(_T)
     table_update_order(values["sort"], sel=values["-TABLE-"],sort_order=values["sort_order"])
     upd_num += 1
@@ -341,10 +371,11 @@ def layout(col,sel_func=[]):
         [sg.Button("Modify data",key="modify",size=S, disabled=True)]
     ]
 
-    def sel(axis,visible=True):
-        return sg.Frame("",key=axis+"_frame",visible=visible, border_width=0, element_justification="center", pad=(0,10), layout=[
+    def sel(axis,visible=True,K=None):
+        list_key = axis if K==None else K
+        return sg.Frame("",key=list_key+"_frame",visible=visible, border_width=0, element_justification="center", pad=(0,10), layout=[
             [sg.Text(axis)],
-            [sg.Listbox([], size=(6, 6), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True, default_values="", key=axis)]
+            [sg.Listbox([], size=(6, 6), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True, default_values="", key=list_key)]
         ])
 
 
@@ -365,6 +396,15 @@ def layout(col,sel_func=[]):
         sg.Combo(DATA_MODES,default_value=DATA_MODES[0],enable_events=True,key="data_mode"),
         sg.Button("Plot",disabled=True)
         ],
+    ]
+
+    res_plt_sel = [
+        [
+        sel("x",K="res_x"),sel("y",K="res_y"),sel("Error",K="res_error"),
+        ],
+        [
+        sg.Button("Plot",key="plot_res")
+        ]
     ]
 
 
@@ -415,8 +455,8 @@ def layout(col,sel_func=[]):
             [
                 sg.Frame("Data menu", data_sel, element_justification="center"),
                 #plot_menu
+                sg.Frame("Result plot", res_plt_sel, element_justification="center"),
                 finfo,
-                sg.Button("test")
             ],
             [
                 sg.Frame("Fit panel", Fit_controler, relief=sg.RELIEF_RAISED, border_width=5)
@@ -462,6 +502,7 @@ pl_f_range_show = False
 ax = None
 fit_num = 0
 f_cnd = []
+added_stats={}
 Dset = {}
 upd_num = 0
 
@@ -487,12 +528,14 @@ while True:
         if values["names"] != "":
             new = values["names"].split(";")
             get_data(new)
+            update_res_plt_menu()
 
     elif event == "folder":
         if values["folder"] != "":
             new = [values["folder"] + "/" +
                    i for i in path_list(values["folder"], fe=values["fe"])]
             get_data(new)
+            update_res_plt_menu()
 
     elif event == "modify":
         selected_data = window["-TABLE-"].get()[values["-TABLE-"][0]][0]
@@ -548,6 +591,7 @@ while True:
             else:
                 table_update_contents_(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
 
+            update_res_plt_menu()
             upd_num+=1
 
             #結果のプロット
@@ -573,10 +617,11 @@ while True:
     elif event == "Column Setting":
         if Dset!={}:
             #AAA = latest_df(T_oya, values["sort"], values["sort_order"])
-            apc, Vcol[1:] = ac.col_cnt(latest_df(T_oya, values["sort"], values["sort_order"]), Dset, Vcol[1:])
+            apc, Vcol[1:],added_stats = ac.col_cnt(latest_df(T_oya, values["sort"], values["sort_order"]), Dset, Vcol[1:],added_stats)
             apc.df["upd_num"] = upd_num
             T_oya = T_oya.append(apc.df)
             table_update_contents(values["sort"], sel=values["-TABLE-"], sort_order=values["sort_order"])
+            update_res_plt_menu()
 
             upd_num+=1
         else:
@@ -671,8 +716,25 @@ while True:
         ax.set_ylabel(new_yname)
         plt.pause(0.1)
 
-    elif event =="test":
-        A=window["-TABLE-"].get()
+    elif event == "plot_res":
+        s = [values["res_x"][0],values["res_y"][0]]
+        A = latest_df(T_oya)
+        fig = plt.figure(figsize=(8, 7), dpi=100)
+        ax = Init_ax(fig, values["res_x"][0], values["res_y"][0], place=111)
+
+        if values["res_error"][0]!="None":
+            s.append(values["res_error"][0])
+            A=A[s].dropna(how="any")
+            error = A[values["res_error"][0]].values
+            x=A[values["res_x"][0]].values
+            y=A[values["res_y"][0]].values
+            ax.errorbar(x,y,yerr=error,fmt="o")
+        else:
+            A=A[s].dropna(how="any")
+            x=A[values["res_x"][0]].values
+            y=A[values["res_y"][0]].values
+            ax.scatter(x,y,edgecolors="black",linewidth=0.5, alpha=0.80)
+        plt.pause(0.1)
 
     elif event == "func_list":
         fg_update()

@@ -55,7 +55,7 @@ def extract_stats(df,col_name):
     return df[col_name].describe().iloc[1:]#countを除外
 
 
-def col_cnt(df_latest, Dset, visible_column):
+def col_cnt(df_latest, Dset, visible_column,added_stats):
     global df_stats, apc, stats_l, df_LLL
     on_col=visible_column
     off_col=list(set(df_latest.columns.tolist()) - set(on_col) - set(["upd_num","f_path"]))
@@ -177,7 +177,7 @@ def col_cnt(df_latest, Dset, visible_column):
         ]
 
     window=sg.Window(app_name, layout=col_controler(on_col, off_col),finalize=True)
-    print(type(window))
+    #print(type(window))
 
     while True:
         event, values = window.read()
@@ -185,7 +185,7 @@ def col_cnt(df_latest, Dset, visible_column):
 
         if event in ("OK","Cancel", sg.WIN_CLOSED, None):
             window.close()
-            return apc, on_col
+            return apc, on_col, added_stats
 
         elif event == "data1":
             st=extract_stats(df_all,values["data1"]).dropna(how="any")
@@ -205,6 +205,7 @@ def col_cnt(df_latest, Dset, visible_column):
                 stats_i = []
                 dsr = i[1][1].describe()
                 for j in values["data1"]:
+                    added_stats[j] = list(set(added_stats[j] + values["stats"]))
                     for k in values["stats"]:
                         stats_i.append(dsr.at[k,j])
                 stats_i=[i[0]] + stats_i
